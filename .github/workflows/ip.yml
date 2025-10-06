@@ -1,9 +1,9 @@
-name: FOFA IP 抓取
+name: FOFA IP
 
 on:
   schedule:
-    - cron: "0 2,10 * * *"  # 每天北京时间 10 点和 18 点（UTC+0 对应 2、10 点）
-  workflow_dispatch:  # 支持手动触发
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
 
 jobs:
   fetch-and-push:

@@ -2,11 +2,11 @@ name: FOFA IP 抓取
 
 on:
   schedule:
-    - cron: "0 0,6,12,18 * * *"  # 每天 0、6、12、18 点执行
-  workflow_dispatch:  # 支持手动触发
+- cron: "0 2,10 * * *"
+  workflow_dispatch:
 
 permissions:
-  contents: write  # 给 GITHUB_TOKEN 写仓库的权限
+  contents: write
 
 jobs:
   fetch-and-push:

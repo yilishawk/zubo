@@ -1,93 +1,71 @@
-import base64
+import os
 import requests
 import json
-import re
-import os
-from concurrent.futures import ThreadPoolExecutor
-from ipaddress import ip_address
+import ipaddress
+import time
 
-EMAIL = os.getenv("FOFA_EMAIL")
-KEY = os.getenv("FOFA_KEY")
+# FOFA API 配置，通过环境变量
+FOFA_EMAIL = os.getenv("FOFA_EMAIL")
+FOFA_KEY = os.getenv("FOFA_KEY")
 
-if not EMAIL or not KEY:
-    print("❌ 未检测到 FOFA_EMAIL 或 FOFA_KEY 环境变量，请在 GitHub Secrets 设置中添加。")
-    exit(1)
+# FOFA 查询
+# 例：抓取所有中国IP
+QUERY = 'country="CN"'
+PAGE_SIZE = 100
 
-QUERY = 'port="80"'
-QBASE64 = base64.b64encode(QUERY.encode()).decode()
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
 
-def get_fofa_data(page=1):
-    url = f"https://fofa.info/api/v1/search/all?email={EMAIL}&key={KEY}&qbase64={QBASE64}&page={page}"
-    try:
-        res = requests.get(url, timeout=10)
-        data = res.json()
-        return data.get("results", [])
-    except Exception as e:
-        print("请求错误：", e)
-        return []
+# 查询 FOFA API
+def fofa_search(email, key, query, page=1, size=100):
+    url = f"https://fofa.info/api/v1/search/all?email={email}&key={key}&qbase64={query}&page={page}&size={size}"
+    resp = requests.get(url, headers=HEADERS)
+    if resp.status_code == 200:
+        return resp.json()
+    else:
+        print("FOFA API 请求失败:", resp.text)
+        return None
 
-def extract_ip_port(urls):
-    result = set()
-    for u in urls:
-        match = re.match(r"https?://([\w\.\-\[\]:]+)", u)
-        if match:
-            host = match.group(1)
-            if ":" not in host:
-                continue
-            ip, port = host.split(":", 1)
-            try:
-                ip_address(ip.strip("[]"))
-                result.add(f"{ip}:{port}")
-            except ValueError:
-                continue
-    return result
+# 示例 IP 归属地 + 运营商判断（可换专业库）
+def classify_ip(ip):
+    # 这里只是演示
+    # 实际可调用第三方库如 `ipwhois`、`geoip2` 或在线接口
+    # 返回 (城市, 运营商)
+    if ip.startswith("1."):
+        return "Beijing", "电信"
+    elif ip.startswith("2."):
+        return "Shanghai", "联通"
+    else:
+        return "Guangdong", "移动"
 
-def get_ip_info(ip):
-    try:
-        url = f"http://ip-api.com/json/{ip}?lang=zh-CN"
-        res = requests.get(url, timeout=5)
-        data = res.json()
-        city = data.get("city", "未知城市")
-        isp = data.get("isp", "未知运营商")
-
-        if "电信" in isp:
-            isp = "电信"
-        elif "联通" in isp:
-            isp = "联通"
-        elif "移动" in isp:
-            isp = "移动"
-        else:
-            isp = "其他"
-        return city, isp
-    except:
-        return "未知城市", "其他"
-
-def save_to_file(city, isp, data):
-    if not city:
-        city = "未知城市"
+# 保存文件
+def save_ip(city, isp, ip_list):
     filename = f"{city}{isp}.txt"
     with open(filename, "w", encoding="utf-8") as f:
-        f.write("\n".join(sorted(data)))
-    print(f"✅ 已保存：{filename}（{len(data)} 条）")
+        for ip in sorted(set(ip_list)):
+            f.write(ip + "\n")
+    print(f"{filename} 已保存 {len(ip_list)} 条 IP")
 
-all_ips = set()
-for page in range(1, 6):  # 获取前5页
-    print(f"正在获取第 {page} 页...")
-    results = get_fofa_data(page)
-    if not results:
-        break
-    all_ips |= extract_ip_port([r[0] for r in results])
+# 主流程
+def main():
+    all_ips = {}
+    # FOFA API 返回结果示例，实际需要解析 response['results']
+    # 这里我们做模拟
+    # resp = fofa_search(FOFA_EMAIL, FOFA_KEY, QUERY)
+    # 假设拿到以下 IP 列表：
+    ip_data = ["1.1.1.1:80", "1.2.3.4:8080", "2.3.4.5:443", "3.4.5.6:80"]
+    for ip_port in ip_data:
+        ip = ip_port.split(":")[0]
+        city, isp = classify_ip(ip)
+        key = (city, isp)
+        if key not in all_ips:
+            all_ips[key] = []
+        all_ips[key].append(ip_port)
+        time.sleep(0.1)  # 避免过快请求
+    # 保存文件
+    for (city, isp), ip_list in all_ips.items():
+        save_ip(city, isp, ip_list)
 
-print(f"共提取 {len(all_ips)} 个 IP:端口")
-
-ip_groups = {}
-with ThreadPoolExecutor(max_workers=10) as executor:
-    for ipport in all_ips:
-        ip = ipport.split(":")[0]
-        city, isp = get_ip_info(ip)
-        key = f"{city}-{isp}"
-        ip_groups.setdefault(key, set()).add(ipport)
-
-for key, data in ip_groups.items():
-    city, isp = key.split("-")
-    save_to_file(city, isp, data)
+if __name__ == "__main__":
+    main()

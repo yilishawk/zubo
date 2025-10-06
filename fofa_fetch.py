@@ -42,7 +42,7 @@ for url, filename in urls.items():
     time.sleep(3)
 
 # -------------------------------
-city_isp_dict = {}
+province_isp_dict = {}
 
 for ip_port in all_ips:
     try:
@@ -51,26 +51,27 @@ for ip_port in all_ips:
         else:
             ip, port = ip_port, ''
 
+        # 获取省份信息
         resp = requests.get(f"http://ip-api.com/json/{ip}?lang=zh-CN", timeout=10)
         data = resp.json()
-        city = data.get("city", "未知")
+        province = data.get("regionName", "未知")  # 按省份分类
         isp_name = get_isp(ip)
         if isp_name == "未知":
-            continue  
+            continue
 
-        filename = f"{city}{isp_name}.txt"
-        if filename not in city_isp_dict:
-            city_isp_dict[filename] = set()
-        city_isp_dict[filename].add(ip_port)  
+        filename = f"{province}{isp_name}.txt"  # 文件名按省份+运营商
+        if filename not in province_isp_dict:
+            province_isp_dict[filename] = set()
+        province_isp_dict[filename].add(ip_port)  # 保留 IP:端口格式
 
-        time.sleep(0.5)
+        time.sleep(0.5)  # 防止请求过快
     except Exception as e:
         print(f"{ip_port} 查询失败：{e}")
         continue
 
 # -------------------------------
-for filename, ip_set in city_isp_dict.items():
-    with open(filename, "w", encoding="utf-8") as f:  
+for filename, ip_set in province_isp_dict.items():
+    with open(filename, "w", encoding="utf-8") as f:  # 覆盖写入
         for ip_port in sorted(ip_set):
             f.write(ip_port + "\n")
     print(f"{filename} 已生成，{len(ip_set)} 个 IP")

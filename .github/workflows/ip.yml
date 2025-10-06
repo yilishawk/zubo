@@ -1,0 +1,40 @@
+name: FOFA IP 抓取
+
+on:
+  schedule:
+    - cron: "0 2,10 * * *"  # 每天北京时间 10 点和 18 点（UTC+0 对应 2、10 点）
+  workflow_dispatch:  # 支持手动触发
+
+jobs:
+  fetch-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ 检出仓库
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ 设置 Python 环境
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      # 3️⃣ 安装依赖
+      - name: Install requests
+        run: pip install requests
+
+      # 4️⃣ 运行抓取脚本
+      - name: Run IP fetch script
+        run: python fofa_fetch.py
+
+      # 5️⃣ 提交并推送生成的 TXT 文件
+      - name: Commit and push IP files
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@users.noreply.github.com"
+          git add *.txt
+          git diff --cached --quiet || git commit -m "自动更新 FOFA IP 文件"
+          git push

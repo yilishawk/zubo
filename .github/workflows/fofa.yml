@@ -1,0 +1,36 @@
+name: FOFA抓取ip
+
+on:
+  schedule:
+    - cron: "0 16 * * *" 
+  workflow_dispatch:
+
+jobs:
+  run-fofa:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: 安装依赖
+        run: pip install requests
+
+      - name: 运行 FOFA 抓取脚本
+        env:
+          FOFA_EMAIL: ${{ secrets.FOFA_EMAIL }}
+          FOFA_KEY: ${{ secrets.FOFA_KEY }}
+        run: python fofa_fetch.py
+
+      - name: 推送结果到仓库
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          git add .
+          git commit -m "更新 FOFA 抓取结果"
+          git push

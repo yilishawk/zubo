@@ -1,39 +1,41 @@
-name: FOFA Fetch IP
+name: FOFA IP 抓取
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # 每天0点运行一次，可根据需要修改
+    - cron: "0 0,6,12,18 * * *"
   workflow_dispatch: # 支持手动触发
 
 jobs:
-  fetch_ip:
+  fetch-and-push:
     runs-on: ubuntu-latest
-    env:
-      FOFA_EMAIL: ${{ secrets.FOFA_EMAIL }}
-      FOFA_KEY: ${{ secrets.FOFA_KEY }}
 
     steps:
+      # 1. 检出代码仓库
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # 2. 设置 Python 环境
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
+      # 3. 安装依赖
+      - name: Install requests
+        run: pip install requests
 
-      - name: Run FOFA fetch script
-        run: |
-          python fofa_fetch.py
+      # 4. 运行抓取脚本
+      - name: Run fofa_fetch.py
+        env:
+          FOFA_EMAIL: ${{ secrets.FOFA_EMAIL }}
+          FOFA_KEY: ${{ secrets.FOFA_KEY }}
+        run: python fofa_fetch.py
 
-      - name: Commit and push updated files
+      # 5. 提交并推送生成的 TXT 文件
+      - name: Commit and push changes
         run: |
           git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
+          git config --global user.email "github-actions@users.noreply.github.com"
           git add *.txt
-          git commit -m "Update FOFA IP files" || echo "No changes to commit"
-          git push
+          git commit -m "自动更新 FOFA IP 文件"
+          git push origin main || echo "No changes to commit"

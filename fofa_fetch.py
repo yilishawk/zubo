@@ -1,6 +1,5 @@
 import re
 import requests
-import os
 import time
 
 # -------------------------------
@@ -28,6 +27,7 @@ def get_isp(ip):
 # -------------------------------
 all_ips = set()
 
+# 1️⃣ 抓网页收集 IP:port
 for url, filename in urls.items():
     try:
         print(f'正在爬取 {filename} .....')
@@ -45,6 +45,7 @@ for url, filename in urls.items():
 # -------------------------------
 city_isp_dict = {}
 
+# 2️⃣ 查询归属地 + 判断运营商
 for ip_port in all_ips:
     try:
         if ':' in ip_port:
@@ -57,19 +58,22 @@ for ip_port in all_ips:
         city = data.get("city", "未知")
         isp_name = get_isp(ip)
         if isp_name == "未知":
-            continue  
+            continue  # 不保存未知运营商
+
         filename = f"{city}{isp_name}.txt"
         if filename not in city_isp_dict:
             city_isp_dict[filename] = set()
-        city_isp_dict[filename].add(ip_port)  
-        time.sleep(0.5)  
+        city_isp_dict[filename].add(ip_port)  # 保存 IP:port
+
+        time.sleep(0.5)
     except Exception as e:
         print(f"{ip_port} 查询失败：{e}")
         continue
 
 # -------------------------------
+# 3️⃣ 保存文件（覆盖写入）
 for filename, ip_set in city_isp_dict.items():
-    with open(filename, "w", encoding="utf-8") as f:
+    with open(filename, "w", encoding="utf-8") as f:  # "w" 模式确保覆盖
         for ip_port in sorted(ip_set):
             f.write(ip_port + "\n")
     print(f"{filename} 已生成，{len(ip_set)} 个 IP")

@@ -19,7 +19,6 @@ for city in cities:
         f"{city}电信.txt": set(),
         f"{city}联通.txt": set(),
         f"{city}移动.txt": set(),
-        f"{city}其他.txt": set(),
     }
 
     try:
@@ -28,11 +27,11 @@ for city in cities:
         results = data.get("results", [])
 
         for record in results:
-            if len(record) < 7:  
+            if len(record) < 7:
                 continue
             ip = record[0]
             port = record[1]
-            isp = record[6]  
+            isp = record[6]
 
             if "电信" in isp:
                 isp_name = "电信"
@@ -41,7 +40,7 @@ for city in cities:
             elif "移动" in isp:
                 isp_name = "移动"
             else:
-                isp_name = "其他"
+                continue  
 
             filename = f"{city}{isp_name}.txt"
             city_isp_dict[filename].add(f"{ip}:{port}")

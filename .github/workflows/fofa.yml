@@ -2,7 +2,7 @@ name: FOFA IP 抓取
 
 on:
   schedule:
-- cron: "0 2,10 * * *"
+    - cron: "0 2,10 * * *"
   workflow_dispatch:
 
 permissions:

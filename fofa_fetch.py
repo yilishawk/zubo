@@ -3,45 +3,71 @@ import requests
 import os
 import time
 
-# 定义要提取的网页列表和对应的保存文件名
 urls = {
     "https://fofa.info/result?qbase64=InVkcHh5IiAmJiBjb3VudHJ5PSJDTiI%3D": "ip.txt",
 }
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
-# 遍历网页列表
+
+all_ips = set()
+
+# 1️⃣ 抓网页，收集所有 IP
 for url, filename in urls.items():
     try:
-        print(f'正在爬取{filename}.....')
-        # 发送GET请求获取源代码
-        response = requests.get(url, headers=headers)
+        print(f'正在爬取 {filename} .....')
+        response = requests.get(url, headers=headers, timeout=15)
         page_content = response.text
-        # 查找所有符合指定格式的网址
         pattern = r'<a href="http://(.*?)" target="_blank">'
         urls_all = re.findall(pattern, page_content)
-        urls = set(urls_all)  # 去重得到唯一的URL列表
-        existing_urls = []
-        # 检查文件是否存在，如果不存在则创建文件
-        if not os.path.exists(filename):
-            with open(filename, 'w', encoding='utf-8'):
-                pass
-        # 读取已存在的URL
-        with open(filename, 'r', encoding='utf-8') as file:
-            existing_urls = file.readlines()
-        existing_urls = [url.strip() for url in existing_urls]  # 去除每行末尾的换行符
-        with open(filename, 'r+', encoding='utf-8') as file:
-            content = file.read()
-            file.seek(0, 0)  # 将文件指针移到文件开头
-            for url in urls:
-                if url not in existing_urls:
-                    file.write(url + "\n")
-                    print(url)
-                    existing_urls.append(url)  # 将新写入的URL添加到已存在的URL列表中
-            file.write(content)  # 将原有内容写回文件
+        for url_ip in urls_all:
+            if ':' in url_ip:
+                ip, port = url_ip.split(':')
+            else:
+                ip = url_ip
+            all_ips.add(ip)
+        print(f'{filename} 爬取完毕，共收集 {len(all_ips)} 个 IP')
     except Exception as e:
-        print(f"爬取 {filename} URL {url} 失败：{str(e)}")
+        print(f"爬取 {filename} 失败：{e}")
+    time.sleep(3)
+
+# 2️⃣ 批量查询 IP 信息
+def chunk_list(lst, n):
+    """将 lst 分割成每 n 个元素一组"""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+city_isp_dict = {}
+
+for batch in chunk_list(list(all_ips), 100):
+    try:
+        data = [{"query": ip} for ip in batch]
+        resp = requests.post("http://ip-api.com/batch?lang=zh-CN", json=data, timeout=15)
+        results = resp.json()
+        for item in results:
+            ip = item.get("query")
+            city = item.get("city", "未知")
+            isp = item.get("isp", "其他")
+            if "电信" in isp:
+                isp_name = "电信"
+            elif "联通" in isp:
+                isp_name = "联通"
+            elif "移动" in isp:
+                isp_name = "移动"
+            else:
+                continue  # 其他不保存
+            filename = f"{city}{isp_name}.txt"
+            if filename not in city_isp_dict:
+                city_isp_dict[filename] = set()
+            city_isp_dict[filename].add(ip)
+        time.sleep(1)
+    except Exception as e:
+        print(f"批量查询失败：{e}")
         continue
-    # 暂停5秒
-    time.sleep(5)
-    print(f'{filename}爬取完毕,下一个')
+
+# 3️⃣ 保存文件
+for filename, ip_set in city_isp_dict.items():
+    with open(filename, "w", encoding="utf-8") as f:
+        for ip in sorted(ip_set):
+            f.write(ip + "\n")
+    print(f"{filename} 已生成，{len(ip_set)} 个 IP")

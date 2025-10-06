@@ -7,9 +7,9 @@ FOFA_KEY = os.environ.get("FOFA_KEY")
 if not FOFA_EMAIL or not FOFA_KEY:
     raise ValueError("请设置环境变量 FOFA_EMAIL 和 FOFA_KEY")
 
-cities = ["北京", "湖北", "贵州", "湖南", "河北"]
+cities = ["北京", "河北"]
 
-PAGE_SIZE = 10
+PAGE_SIZE = 100
 
 for city in cities:
     query = f'country="CN" && city="{city}"'

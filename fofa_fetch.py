@@ -146,7 +146,7 @@ if run_count == 18:
         # 多线程检测
         def build_and_check(ip_port):
             ip_only, port = ip_port.split(":")
-            url = f"http://{ip_port}/rtp/{rtp_url.split('rtp//:')[1]}"
+            url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
             # 检测 URL
             try:
                 resp = requests.get(url, timeout=5, stream=True)
@@ -169,7 +169,7 @@ if run_count == 18:
             ip_only, port = ip_port.split(":")
             for other_rtp_line in rtp_lines[1:]:
                 ch_name, rtp_url_rest = other_rtp_line.split(",", 1)
-                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url_rest.split('rtp//:')[1]}")
+                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url_rest.split('rtp://')[1]}")
 
     # 写入 zubo.txt
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:

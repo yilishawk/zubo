@@ -19,8 +19,8 @@ headers = {
 
 # ===============================
 # 计数文件（记录运行次数）
-COUNTER_FILE = "run_count.txt"
-MAIN_DIR = "main"
+COUNTER_FILE = "计数.txt"
+IP_DIR = "ip"
 
 def get_run_count():
     """获取当前运行计数"""
@@ -40,23 +40,23 @@ def save_run_count(count):
 
 def check_and_clear_files_by_run_count():
     """
-    每运行20次清空 main 目录下所有 txt 文件。
-    前19次为追加，第20次清空并覆盖。
+    每运行19次清空 ip 目录下所有 txt 文件。
+    前18次为追加，第19次清空并覆盖。
     返回写入模式 w 或 a
     """
-    os.makedirs(MAIN_DIR, exist_ok=True)
+    os.makedirs(IP_DIR, exist_ok=True)
     count = get_run_count()
     count += 1
 
-    if count >= 20:
-        print(f"🧹 第 {count} 次运行，开始清空 {MAIN_DIR} 下所有 .txt 文件...")
-        for file in os.listdir(MAIN_DIR):
+    if count >= 19:
+        print(f"🧹 第 {count} 次运行，开始清空 {IP_DIR} 下所有 .txt 文件...")
+        for file in os.listdir(IP_DIR):
             if file.endswith(".txt"):
-                os.remove(os.path.join(MAIN_DIR, file))
+                os.remove(os.path.join(IP_DIR, file))
                 print(f"已删除：{file}")
         print("✅ 清空完成，本次执行为【覆盖写入模式】")
-        save_run_count(0)
-        return "w", count
+        save_run_count(1)  # 清空后计数从1开始
+        return "w", 1
     else:
         print(f"⏰ 当前第 {count} 次运行，本次执行为【追加写入模式】")
         save_run_count(count)
@@ -118,13 +118,13 @@ for ip_port in all_ips:
         continue
 
 # ===============================
-# 判断写入模式（每20次清空一次）
+# 判断写入模式（每19次清空一次）
 write_mode, run_count = check_and_clear_files_by_run_count()
 
 # ===============================
-# 写入 main 目录
+# 写入 ip 目录
 for filename, ip_set in province_isp_dict.items():
-    save_path = os.path.join(MAIN_DIR, filename)
+    save_path = os.path.join(IP_DIR, filename)
     with open(save_path, write_mode, encoding="utf-8") as f:
         for ip_port in sorted(ip_set):
             f.write(ip_port + "\n")

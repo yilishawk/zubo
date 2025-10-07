@@ -1,6 +1,7 @@
 import re
 import requests
 import time
+from datetime import datetime, timedelta, timezone
 
 # -------------------------------
 urls = {
@@ -23,6 +24,20 @@ def get_isp(ip):
         return "移动"
     else:
         return "未知"
+
+# -------------------------------
+# 判断写入模式（每6小时整点覆盖，其余时间追加）
+def get_write_mode():
+    # 计算北京时间
+    beijing_tz = timezone(timedelta(hours=8))
+    now = datetime.now(beijing_tz)
+    hour = now.hour
+    if hour % 6 == 0:  # 每6小时一次（0,6,12,18）
+        print(f"🕕 当前北京时间 {hour} 点整，采用【覆盖写入模式】")
+        return "w"
+    else:
+        print(f"⏰ 当前北京时间 {hour} 点，采用【追加写入模式】")
+        return "a"
 
 # -------------------------------
 all_ips = set()
@@ -59,19 +74,22 @@ for ip_port in all_ips:
         if isp_name == "未知":
             continue
 
-        filename = f"{province}{isp_name}.txt"  # 文件名按省份+运营商
+        filename = f"{province}{isp_name}.txt"
         if filename not in province_isp_dict:
             province_isp_dict[filename] = set()
-        province_isp_dict[filename].add(ip_port)  # 保留 IP:端口格式
+        province_isp_dict[filename].add(ip_port)
 
-        time.sleep(0.5)  # 防止请求过快
+        time.sleep(0.5)
     except Exception as e:
         print(f"{ip_port} 查询失败：{e}")
         continue
 
 # -------------------------------
+write_mode = get_write_mode()  # 判断是否覆盖或追加
+
 for filename, ip_set in province_isp_dict.items():
-    with open(filename, "w", encoding="utf-8") as f:  # 覆盖写入
+    with open(filename, write_mode, encoding="utf-8") as f:
         for ip_port in sorted(ip_set):
             f.write(ip_port + "\n")
-    print(f"{filename} 已生成，{len(ip_set)} 个 IP")
+    mode_text = "覆盖" if write_mode == "w" else "追加"
+    print(f"{filename} 已{mode_text}写入 {len(ip_set)} 个 IP")

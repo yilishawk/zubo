@@ -131,6 +131,9 @@ if run_count == 18:
         if not os.path.exists(rtp_path):
             continue
 
+        provider_name = ip_file.replace(".txt", "")  # 省份+运营商名称
+        ip_success_count = 0  # 当前文件中可用IP计数
+
         with open(ip_path, "r", encoding="utf-8") as f_ip, \
              open(rtp_path, "r", encoding="utf-8") as f_rtp:
             ip_lines = [line.strip() for line in f_ip if line.strip()]
@@ -151,28 +154,31 @@ if run_count == 18:
             try:
                 resp = requests.get(url, timeout=5, stream=True)
                 if resp.status_code == 200:
-                    return f"{channel_name},{url}"
+                    return url  # 只返回url
             except Exception:
                 return None
             return None
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            results = executor.map(build_and_check, ip_lines)
+            results = list(executor.map(build_and_check, ip_lines))
 
-        # 保存有效 URL
+        # 保存有效 URL（检测通过）
         for res in results:
             if res:
-                combined_lines.append(res)
+                ip_success_count += 1
+                suffix = f"${provider_name}{ip_success_count}" if ip_success_count > 1 else f"${provider_name}"
+                combined_lines.append(f"{channel_name},{res}{suffix}")
 
         # 其余 rtp_lines 不检测，直接组合
         for ip_port in ip_lines:
             ip_only, port = ip_port.split(":")
             for other_rtp_line in rtp_lines[1:]:
                 ch_name, rtp_url_rest = other_rtp_line.split(",", 1)
-                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url_rest.split('rtp://')[1]}")
+                url = f"http://{ip_port}/rtp/{rtp_url_rest.split('rtp://')[1]}"
+                suffix = f"${provider_name}"
+                combined_lines.append(f"{ch_name},{url}{suffix}")
 
-    # ===== 新增：去重处理 =====
-    # 用 dict.fromkeys() 保留原顺序去重
+    # ===== 去重处理 =====
     combined_lines = list(dict.fromkeys(combined_lines))
 
     # 写入 zubo.txt

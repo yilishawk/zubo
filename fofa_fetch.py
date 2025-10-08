@@ -122,7 +122,6 @@ if run_count == 18:
     print("🔔 第二阶段触发：生成 zubo.txt")
     combined_lines = []
 
-    # 遍历 ip/ 文件夹
     for ip_file in os.listdir(IP_DIR):
         if not ip_file.endswith(".txt"):
             continue
@@ -131,8 +130,8 @@ if run_count == 18:
         if not os.path.exists(rtp_path):
             continue
 
-        provider_name = ip_file.replace(".txt", "")  # 省份+运营商名称
-        ip_success_count = 0  # 当前文件中可用IP计数
+        provider_name = ip_file.replace(".txt", "")
+        ip_success_index = {}  # 记录每个IP对应的编号（防止重复URL重复编号）
 
         with open(ip_path, "r", encoding="utf-8") as f_ip, \
              open(rtp_path, "r", encoding="utf-8") as f_rtp:
@@ -142,19 +141,17 @@ if run_count == 18:
         if not ip_lines or not rtp_lines:
             continue
 
-        first_rtp_line = rtp_lines[0]  # 只检测第一行 IP
+        first_rtp_line = rtp_lines[0]
         channel_name, rtp_url = first_rtp_line.split(",", 1)
 
         # ===============================
-        # 多线程检测
         def build_and_check(ip_port):
             ip_only, port = ip_port.split(":")
             url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
-            # 检测 URL
             try:
                 resp = requests.get(url, timeout=5, stream=True)
                 if resp.status_code == 200:
-                    return url  # 只返回url
+                    return ip_port, url
             except Exception:
                 return None
             return None
@@ -162,20 +159,24 @@ if run_count == 18:
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             results = list(executor.map(build_and_check, ip_lines))
 
-        # 保存有效 URL（检测通过）
+        # 保存有效 URL
         for res in results:
-            if res:
-                ip_success_count += 1
-                suffix = f"${provider_name}{ip_success_count}" if ip_success_count > 1 else f"${provider_name}"
-                combined_lines.append(f"{channel_name},{res}{suffix}")
+            if not res:
+                continue
+            ip_port, url = res
+            if ip_port not in ip_success_index:  # 避免重复URL增加编号
+                ip_success_index[ip_port] = len(ip_success_index) + 1
+
+            suffix = f"${provider_name}{ip_success_index[ip_port]}" if len(ip_success_index) > 1 else f"${provider_name}"
+            combined_lines.append(f"{channel_name},{url}{suffix}")
 
         # 其余 rtp_lines 不检测，直接组合
         for ip_port in ip_lines:
             ip_only, port = ip_port.split(":")
+            suffix = f"${provider_name}{ip_success_index[ip_port]}" if ip_port in ip_success_index and len(ip_success_index) > 1 else f"${provider_name}"
             for other_rtp_line in rtp_lines[1:]:
                 ch_name, rtp_url_rest = other_rtp_line.split(",", 1)
                 url = f"http://{ip_port}/rtp/{rtp_url_rest.split('rtp://')[1]}"
-                suffix = f"${provider_name}"
                 combined_lines.append(f"{ch_name},{url}{suffix}")
 
     # ===== 去重处理 =====

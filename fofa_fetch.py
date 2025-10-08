@@ -171,9 +171,13 @@ if run_count == 18:
                 ch_name, rtp_url_rest = other_rtp_line.split(",", 1)
                 combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url_rest.split('rtp://')[1]}")
 
+    # ===== 新增：去重处理 =====
+    # 用 dict.fromkeys() 保留原顺序去重
+    combined_lines = list(dict.fromkeys(combined_lines))
+
     # 写入 zubo.txt
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:
         for line in combined_lines:
             f.write(line + "\n")
 
-    print(f"🎯 第二阶段完成，已生成 {ZUBO_FILE}，共 {len(combined_lines)} 条有效 URL")
+    print(f"🎯 第二阶段完成，已生成 {ZUBO_FILE}，共 {len(combined_lines)} 条唯一 URL")

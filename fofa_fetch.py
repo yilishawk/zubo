@@ -117,63 +117,83 @@ for filename, ip_set in province_isp_dict.items():
 print(f"✅ 第一阶段完成，本次运行轮次：{run_count}")
 
 # ===============================
-# 第二阶段：计数=18触发 zubo.txt 生成
-if run_count == 18:
+# ===== 第二阶段：触发条件（计数.txt 内容为 18）=====
+if counter == 18:
     print("🔔 第二阶段触发：生成 zubo.txt")
-    combined_lines = []
 
-    # 遍历 ip/ 文件夹
-    for ip_file in os.listdir(IP_DIR):
+    ip_dir = "ip"
+    rtp_dir = "rtp"
+    all_results = []
+
+    # 检查 ip/ 与 rtp/ 目录是否存在
+    if not os.path.exists(ip_dir) or not os.path.exists(rtp_dir):
+        print("❌ 缺少 ip/ 或 rtp/ 文件夹，终止执行。")
+        exit(0)
+
+    # 遍历 ip 目录下所有 .txt 文件
+    for ip_file in os.listdir(ip_dir):
         if not ip_file.endswith(".txt"):
             continue
-        ip_path = os.path.join(IP_DIR, ip_file)
-        rtp_path = os.path.join(RTP_DIR, ip_file)
+
+        ip_path = os.path.join(ip_dir, ip_file)
+        rtp_path = os.path.join(rtp_dir, ip_file)
+
+        # 确保 rtp 下有对应文件
         if not os.path.exists(rtp_path):
+            print(f"⚠️ 跳过 {ip_file}，rtp 文件不存在。")
             continue
 
-        with open(ip_path, "r", encoding="utf-8") as f_ip, \
-             open(rtp_path, "r", encoding="utf-8") as f_rtp:
-            ip_lines = [line.strip() for line in f_ip if line.strip()]
-            rtp_lines = [line.strip() for line in f_rtp if line.strip()]
+        with open(ip_path, "r", encoding="utf-8") as f:
+            ip_lines = [line.strip() for line in f if line.strip()]
+
+        with open(rtp_path, "r", encoding="utf-8") as f:
+            rtp_lines = [line.strip() for line in f if line.strip()]
 
         if not ip_lines or not rtp_lines:
+            print(f"⚠️ 跳过 {ip_file}，文件内容为空。")
             continue
 
-        first_rtp_line = rtp_lines[0]  # 只检测第一行 IP
-        channel_name, rtp_url = first_rtp_line.split(",", 1)
+        # 多线程检测第一行
+        first_rtp = rtp_lines[0]
+        valid_ips = []
+        print(f"🔍 检测 {ip_file} 中的可用 IP...")
 
-        # ===============================
-        # 多线程检测
-        def build_and_check(ip_port):
-            ip_only, port = ip_port.split(":")
-            url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
-            # 检测 URL
-            try:
-                resp = requests.get(url, timeout=5, stream=True)
-                if resp.status_code == 200:
-                    return f"{channel_name},{url}"
-            except Exception:
-                return None
-            return None
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            future_to_ip = {
+                executor.submit(check_stream_resolution, ip, first_rtp): ip for ip in ip_lines
+            }
+            for future in concurrent.futures.as_completed(future_to_ip):
+                ip = future_to_ip[future]
+                if future.result():
+                    valid_ips.append(ip)
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            results = executor.map(build_and_check, ip_lines)
+        if not valid_ips:
+            print(f"❌ {ip_file} 无可用 IP，跳过。")
+            continue
 
-        # 保存有效 URL
-        for res in results:
-            if res:
-                combined_lines.append(res)
+        # 对每个有效 IP 合并所有频道
+        for ip_port in valid_ips:
+            for rtp_line in rtp_lines:
+                try:
+                    name, rtp_url = rtp_line.split(",", 1)
+                    # 兼容多种 rtp 格式
+                    rtp_url = rtp_url.replace("rtp//:", "").replace("rtp://", "")
+                    merged = f"{name},http://{ip_port}/rtp/{rtp_url}"
+                    all_results.append(merged)
+                except Exception as e:
+                    print(f"⚠️ 格式错误（{ip_file}）: {rtp_line}")
 
-        # 其余 rtp_lines 不检测，直接组合
-        for ip_port in ip_lines:
-            ip_only, port = ip_port.split(":")
-            for other_rtp_line in rtp_lines[1:]:
-                ch_name, rtp_url_rest = other_rtp_line.split(",", 1)
-                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url_rest.split('rtp://')[1]}")
+    # ✅ 全局去重逻辑（核心改动）
+    print("🧹 正在对所有 URL 进行去重处理...")
+    unique_lines = []
+    seen = set()
+    for line in all_results:
+        if line not in seen:
+            seen.add(line)
+            unique_lines.append(line)
 
-    # 写入 zubo.txt
-    with open(ZUBO_FILE, "w", encoding="utf-8") as f:
-        for line in combined_lines:
-            f.write(line + "\n")
+    # 保存到 zubo.txt
+    with open("zubo.txt", "w", encoding="utf-8") as f:
+        f.write("\n".join(unique_lines))
 
-    print(f"🎯 第二阶段完成，已生成 {ZUBO_FILE}，共 {len(combined_lines)} 条有效 URL")
+    print(f"✅ 第二阶段完成，共生成 {len(unique_lines)} 条唯一可用直播源。")

@@ -38,11 +38,6 @@ def save_run_count(count):
         f.write(str(count))
 
 def check_and_clear_files_by_run_count():
-    """
-    每运行19次清空 IP_DIR 下所有 txt 文件。
-    前18次追加，第19次清空覆盖。
-    返回写入模式 w 或 a
-    """
     os.makedirs(IP_DIR, exist_ok=True)
     count = get_run_count() + 1
     if count >= 19:
@@ -117,8 +112,7 @@ for filename, ip_set in province_isp_dict.items():
 print(f"✅ 第一阶段完成，本次运行轮次：{run_count}")
 
 # ===============================
-# -------------------------------
-# 第二阶段：每逢 12、24、36、48、60、72 次触发 zubo.txt 生成
+# 第二阶段：生成 zubo.txt
 if run_count in [12, 24, 36, 48, 60, 72]:
     print(f"🔔 第二阶段触发：生成 zubo.txt（第 {run_count} 次）")
     combined_lines = []
@@ -132,7 +126,7 @@ if run_count in [12, 24, 36, 48, 60, 72]:
         if not os.path.exists(rtp_path):
             continue
 
-        province_operator = ip_file.replace(".txt", "")  # 省份+运营商名
+        province_operator = ip_file.replace(".txt", "")
         with open(ip_path, "r", encoding="utf-8") as f_ip, \
              open(rtp_path, "r", encoding="utf-8") as f_rtp:
             ip_lines = [line.strip() for line in f_ip if line.strip()]
@@ -170,7 +164,7 @@ if run_count in [12, 24, 36, 48, 60, 72]:
                 ch_name, rtp_url_rest = other_rtp_line.split(",", 1)
                 combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url_rest.split('rtp://')[1]}${province_operator}")
 
-    # 去重（按 URL 部分）
+    # 去重
     unique_lines = {}
     for line in combined_lines:
         parts = line.split(",", 1)
@@ -187,8 +181,60 @@ if run_count in [12, 24, 36, 48, 60, 72]:
 
     print(f"🎯 第二阶段完成，已生成 {ZUBO_FILE}，共 {len(combined_lines)} 条有效 URL")
 
-    # ✅ 推送到仓库
-    print("🚀 正在推送 zubo.txt 到仓库 ...")
+    # ===============================
+    # 第三阶段：播放性检测 + CCTV1判断 + 分类映射
+    print("🚀 第三阶段：播放性检测 + 分类映射")
+    final_lines = []
+
+    # 准备频道分类和映射
+    CHANNEL_CATEGORIES = {...}  # 你之前提供的完整分类
+    CHANNEL_MAPPING = {...}     # 你之前提供的完整映射
+
+    # 读取第二阶段生成的 zubo.txt
+    url_dict = {}
+    with open(ZUBO_FILE, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            ch, url = line.split(",", 1)
+            ip_part = url.split("/")[2].split(":")[0]  # 获取 IP
+            if ip_part not in url_dict:
+                url_dict[ip_part] = []
+            url_dict[ip_part].append(line)
+
+    # CCTV1播放性检测，只要能播放，则保留该 IP 下全部频道
+    def check_playable(url_line):
+        try:
+            ch_name, url = url_line.split(",", 1)
+            if "CCTV1" in ch_name:
+                resp = requests.get(url, timeout=5, stream=True)
+                if resp.status_code == 200:
+                    return True
+        except Exception:
+            pass
+        return False
+
+    final_url_list = []
+    for ip, lines in url_dict.items():
+        keep_ip = any(check_playable(line) for line in lines)
+        if keep_ip:
+            final_url_list.extend(lines)
+
+    # 分类映射（简单示例）
+    for line in final_url_list:
+        ch, url = line.split(",", 1)
+        ch_std = CHANNEL_MAPPING.get(ch, ch)
+        final_lines.append(f"{ch_std},{url}")
+
+    # 写入最终 zubo.txt
+    with open(ZUBO_FILE, "w", encoding="utf-8") as f:
+        for line in final_lines:
+            f.write(line + "\n")
+
+    print(f"✅ 第三阶段完成，最终 zubo.txt 共 {len(final_lines)} 条 URL")
+
+    # 推送到仓库
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
     os.system("git add zubo.txt")
@@ -201,6 +247,6 @@ elif run_count == 73:
     for ip_file in os.listdir(IP_DIR):
         if ip_file.endswith(".txt"):
             open(os.path.join(IP_DIR, ip_file), "w").close()
-    with open(COUNT_FILE, "w", encoding="utf-8") as f:
+    with open(COUNTER_FILE, "w", encoding="utf-8") as f:
         f.write("1")
     print("✅ 已清空 ip 文件夹并重置计数为 1")

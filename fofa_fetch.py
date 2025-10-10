@@ -117,74 +117,132 @@ for filename, ip_set in province_isp_dict.items():
 print(f"✅ 第一阶段完成，本次运行轮次：{run_count}")
 
 # ===============================
-# 第二阶段：计数=18触发 zubo.txt 生成
-if run_count == 18:
-    print("🔔 第二阶段触发：生成 zubo.txt")
+# -------------------------------
+# 第二阶段：按新规则触发并生成 zubo.txt
+# 触发：run_count 为 12、24、36、48、60、72 时执行生成
+# 额外：当 run_count == 73 时，清空 ip/ 下所有 txt 并将计数重置为 1（开始新轮回）
+# 注意：本段只负责生成 zubo.txt（覆盖），不负责 git 提交/推送
+# -------------------------------
+
+# 需要 concurrent.futures 已在文件顶部导入
+import concurrent.futures
+
+# 触发集合（12 的倍数，到 72）
+TRIGGERS = {12, 24, 36, 48, 60, 72}
+
+if run_count in TRIGGERS:
+    print(f"🔔 第二阶段触发（run_count={run_count}）：生成 {ZUBO_FILE}")
     combined_lines = []
 
+    # 遍历 ip/ 文件夹中每个 txt 文件
     for ip_file in os.listdir(IP_DIR):
         if not ip_file.endswith(".txt"):
             continue
+
         ip_path = os.path.join(IP_DIR, ip_file)
         rtp_path = os.path.join(RTP_DIR, ip_file)
         if not os.path.exists(rtp_path):
+            # 没有同名 rtp 文件则跳过
             continue
 
-        provider_name = ip_file.replace(".txt", "")
-        ip_success_index = {}  # 记录每个IP对应的编号（防止重复URL重复编号）
+        provider_name = ip_file.replace(".txt", "")  # 用于后缀，如 "广东电信"
 
-        with open(ip_path, "r", encoding="utf-8") as f_ip, \
-             open(rtp_path, "r", encoding="utf-8") as f_rtp:
+        # 读取 ip 与 rtp 文件内容
+        with open(ip_path, "r", encoding="utf-8") as f_ip:
             ip_lines = [line.strip() for line in f_ip if line.strip()]
+        with open(rtp_path, "r", encoding="utf-8") as f_rtp:
             rtp_lines = [line.strip() for line in f_rtp if line.strip()]
 
         if not ip_lines or not rtp_lines:
+            continue  # 内容为空则跳过
+
+        # 只检测 rtp 文件的第一行（保持原有逻辑）
+        first_rtp_line = rtp_lines[0]
+        try:
+            first_channel_name, first_rtp_url = first_rtp_line.split(",", 1)
+        except Exception:
+            # 格式异常，跳过该文件
+            print(f"⚠️ 跳过（格式异常）：{rtp_path}")
             continue
 
-        first_rtp_line = rtp_lines[0]
-        channel_name, rtp_url = first_rtp_line.split(",", 1)
+        # 仅支持标准 rtp:// 格式（符合你之前的要求）
+        if "rtp://" not in first_rtp_url:
+            print(f"⚠️ 跳过（非标准 rtp://）：{first_rtp_url}")
+            continue
+        first_rtp_part = first_rtp_url.split("rtp://", 1)[1]
 
-        # ===============================
-        def build_and_check(ip_port):
-            ip_only, port = ip_port.split(":")
-            url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
+        # -------------------
+        # 多线程检测（只检测第一行）：
+        # 返回通过检测（HTTP 200）的 ip_port 列表（保持顺序并去重）
+        def check_ip_for_first_rtp(ip_port):
             try:
+                url = f"http://{ip_port}/rtp/{first_rtp_part}"
                 resp = requests.get(url, timeout=5, stream=True)
                 if resp.status_code == 200:
-                    return ip_port, url
+                    return ip_port
             except Exception:
                 return None
             return None
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            results = list(executor.map(build_and_check, ip_lines))
+            results = list(executor.map(check_ip_for_first_rtp, ip_lines))
 
-        # 保存有效 URL
-        for res in results:
-            if not res:
-                continue
-            ip_port, url = res
-            if ip_port not in ip_success_index:  # 避免重复URL增加编号
-                ip_success_index[ip_port] = len(ip_success_index) + 1
+        # 保留检测成功且去重的 ip 顺序
+        valid_ips = []
+        for r in results:
+            if r and r not in valid_ips:
+                valid_ips.append(r)
 
-            suffix = f"${provider_name}{ip_success_index[ip_port]}" if len(ip_success_index) > 1 else f"${provider_name}"
-            combined_lines.append(f"{channel_name},{url}{suffix}")
+        if not valid_ips:
+            # 该 provider 没有可用 IP，跳过
+            print(f"❌ {provider_name} 无可用 IP，跳过")
+            continue
 
-        # 其余 rtp_lines 不检测，直接组合
-        for ip_port in ip_lines:
-            ip_only, port = ip_port.split(":")
-            suffix = f"${provider_name}{ip_success_index[ip_port]}" if ip_port in ip_success_index and len(ip_success_index) > 1 else f"${provider_name}"
-            for other_rtp_line in rtp_lines[1:]:
-                ch_name, rtp_url_rest = other_rtp_line.split(",", 1)
-                url = f"http://{ip_port}/rtp/{rtp_url_rest.split('rtp://')[1]}"
-                combined_lines.append(f"{ch_name},{url}{suffix}")
+        # 为每个通过检测的 IP 分配后缀（若只有 1 个则不编号；若多个则编号从1开始）
+        suffix_map = {}
+        if len(valid_ips) == 1:
+            suffix_map[valid_ips[0]] = f"${provider_name}"
+        else:
+            for idx, ip_val in enumerate(valid_ips, start=1):
+                suffix_map[ip_val] = f"${provider_name}{idx}"
 
-    # ===== 去重处理 =====
+        # 使用通过检测的 IP 去合并 rtp_lines（包括第一行与其他行）
+        for ip_port in valid_ips:
+            suffix = suffix_map[ip_port]
+            for rtp_line in rtp_lines:
+                try:
+                    ch_name, rtp_url_line = rtp_line.split(",", 1)
+                except Exception:
+                    continue
+                # 仅支持标准 rtp://，其余格式跳过
+                if "rtp://" not in rtp_url_line:
+                    continue
+                rtp_part_line = rtp_url_line.split("rtp://", 1)[1]
+                merged_url = f"http://{ip_port}/rtp/{rtp_part_line}"
+                combined_lines.append(f"{ch_name},{merged_url}{suffix}")
+
+    # 全局去重（保留原顺序）
     combined_lines = list(dict.fromkeys(combined_lines))
 
-    # 写入 zubo.txt
+    # 写入 zubo.txt（覆盖）
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:
         for line in combined_lines:
             f.write(line + "\n")
 
     print(f"🎯 第二阶段完成，已生成 {ZUBO_FILE}，共 {len(combined_lines)} 条唯一 URL")
+
+# -------------------------------
+# 第73次：清空 ip/ 下所有 txt 并把计数重置为 1（开始新轮回）
+# 注意：这个分支与第二阶段并列，当 run_count == 73 时会运行
+if run_count == 73:
+    print("🧹 run_count == 73，开始清空 ip/ 下所有 .txt 并重置计数为 1")
+    try:
+        for file in os.listdir(IP_DIR):
+            if file.endswith(".txt"):
+                os.remove(os.path.join(IP_DIR, file))
+                print(f"已删除：{file}")
+        # 将计数写为 1，开始新轮回
+        save_run_count(1)
+        print("✅ 清空完成，计数已重置为 1")
+    except Exception as e:
+        print(f"清空 ip/ 时发生错误：{e}")

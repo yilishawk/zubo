@@ -38,19 +38,18 @@ def save_run_count(count):
 
 def check_and_clear_files_by_run_count():
     """
-    每运行19次清空 IP_DIR 下所有 txt 文件。
-    前18次追加，第19次清空覆盖。
-    返回写入模式 w 或 a
+    每运行 73 次清空 IP_DIR 下所有 txt 文件。
+    前 72 次追加，第 73 次清空覆盖。
     """
     os.makedirs(IP_DIR, exist_ok=True)
     count = get_run_count() + 1
-    if count >= 19:
+    if count >= 73:
         print(f"🧹 第 {count} 次运行，清空 {IP_DIR} 下所有 .txt 文件...")
         for file in os.listdir(IP_DIR):
             if file.endswith(".txt"):
                 os.remove(os.path.join(IP_DIR, file))
                 print(f"已删除：{file}")
-        save_run_count(1)  # 清空后计数从1开始
+        save_run_count(1)
         return "w", 1
     else:
         print(f"⏰ 当前第 {count} 次运行，本次执行为追加模式")
@@ -116,8 +115,12 @@ for filename, ip_set in province_isp_dict.items():
 print(f"✅ 第一阶段完成，本次运行轮次：{run_count}")
 
 # ===============================
-# 第二阶段：每 18 次触发，生成并推送 zubo.txt
-if run_count == 18:
+# 第二阶段触发条件
+trigger_points = [12, 24, 36, 48, 60, 72]
+
+# ===============================
+# 第二阶段：生成 zubo.txt
+if run_count in trigger_points:
     print(f"🔔 第二阶段触发：生成 zubo.txt（第 {run_count} 次）")
     combined_lines = []
 
@@ -138,33 +141,30 @@ if run_count == 18:
         if not ip_lines or not rtp_lines:
             continue
 
-        first_rtp_line = rtp_lines[0]
-        channel_name, rtp_url = first_rtp_line.split(",", 1)
+        # 检测第一个频道可用性
+        test_channel, test_rtp = rtp_lines[0].split(",", 1)
 
-        # 检测第一个频道
-        def build_and_check(ip_port):
+        def check_ip(ip_port):
             try:
-                url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
+                url = f"http://{ip_port}/rtp/{test_rtp.split('rtp://')[1]}"
                 resp = requests.get(url, timeout=5, stream=True)
                 if resp.status_code == 200:
-                    return f"{channel_name},{url}"
+                    return ip_port
             except Exception:
                 pass
             return None
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            results = list(executor.map(build_and_check, ip_lines))
+            results = list(executor.map(check_ip, ip_lines))
 
-        valid_urls = [r for r in results if r]
-        for idx, res in enumerate(valid_urls, start=1):
-            suffix = f"${province_operator}{idx if len(valid_urls) > 1 else ''}"
-            combined_lines.append(f"{res}{suffix}")
+        valid_ips = [r for r in results if r]
 
-        # 组合其他频道
-        for ip_port in ip_lines:
-            for other_rtp_line in rtp_lines[1:]:
-                ch_name, rtp_url_rest = other_rtp_line.split(",", 1)
-                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url_rest.split('rtp://')[1]}${province_operator}")
+        # 仅使用检测通过的IP生成URL
+        for i, ip_port in enumerate(valid_ips, start=1):
+            suffix = f"${province_operator}{i}"
+            for rtp_line in rtp_lines:
+                ch_name, rtp_url_rest = rtp_line.split(",", 1)
+                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url_rest.split('rtp://')[1]}{suffix}")
 
     # 去重
     unique_lines = {}

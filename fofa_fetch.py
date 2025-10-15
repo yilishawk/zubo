@@ -3,6 +3,7 @@ import re
 import requests
 import time
 import concurrent.futures
+import subprocess
 
 # ===============================
 # 配置区
@@ -26,12 +27,9 @@ CHANNEL_CATEGORIES = {
     "卫视频道": ["湖南卫视", "浙江卫视"],
     "数字频道": ["CHC动作电影", "CHC家庭影院", "CHC影迷电影"],
 }
-
 CHANNEL_MAPPING = {
     "CCTV1": ["CCTV-1", "CCTV-1 HD", "CCTV1 HD", "CCTV-1综合", "CCTV1 4M1080", "CCTV1 5M1080HEVC"],
     "CCTV2": ["CCTV-2", "CCTV-2 HD", "CCTV2 HD", "CCTV-2财经", "CCTV2 720", "节目暂时不可用 1080"],
-    "湖南卫视": ["湖南", "湖南HD", "湖南卫视高清"],
-    "浙江卫视": ["浙江", "浙江HD", "浙江卫视高清"],
 }
 
 # ===============================
@@ -73,26 +71,7 @@ def get_isp(ip):
     return "未知"
 
 # ===============================
-# 工具函数
-def normalize_channel_name(name):
-    for std, aliases in CHANNEL_MAPPING.items():
-        for alias in aliases:
-            if alias.lower() in name.lower():
-                return std
-    return name.strip()
-
-def test_url_latency(url, timeout=5):
-    try:
-        start = time.time()
-        r = requests.get(url, timeout=timeout, stream=True)
-        if r.status_code == 200:
-            return time.time() - start
-    except:
-        return None
-    return None
-
-# ===============================
-# 第一阶段：爬取 IP
+# 第一阶段：爬取 + 分类写入
 def first_stage():
     all_ips = set()
     for url, filename in FOFA_URLS.items():
@@ -131,7 +110,7 @@ def first_stage():
     return run_count
 
 # ===============================
-# 第二阶段：生成并推送 zubo.txt
+# 第二阶段：生成 zubo.txt
 def second_stage():
     print("🔔 第二阶段触发：生成 zubo.txt")
     combined_lines = []
@@ -151,26 +130,7 @@ def second_stage():
         if not ip_lines or not rtp_lines:
             continue
 
-        # 检测第一个频道可用性
-        first_rtp_line = rtp_lines[0]
-        if "," not in first_rtp_line:
-            continue
-        ch_name, rtp_url = first_rtp_line.split(",", 1)
-
-        def build_and_check(ip_port):
-            url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
-            try:
-                r = requests.get(url, timeout=5, stream=True)
-                if r.status_code == 200:
-                    return ip_port
-            except:
-                return None
-            return None
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as exe:
-            valid_ips = [ip for ip in exe.map(build_and_check, ip_lines) if ip]
-
-        for ip_port in valid_ips:
+        for ip_port in ip_lines:
             for rtp_line in rtp_lines:
                 if "," not in rtp_line:
                     continue
@@ -184,103 +144,83 @@ def second_stage():
         if url_part not in unique:
             unique[url_part] = line
 
-    # 写入 zubo.txt 并推送
+    # 写入 zubo.txt
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:
         for line in unique.values():
             f.write(line + "\n")
-    print(f"🎯 第二阶段完成，zubo.txt 共 {len(unique)} 条 URL")
+    print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL")
 
+    # 推送 zubo.txt
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
     os.system("git add zubo.txt")
     os.system('git commit -m "自动更新 zubo.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main")
-    return unique
+    print("🚀 zubo.txt 已推送")
 
 # ===============================
-# 第三阶段：严格检测代表频道，生成 IPTV.txt
+# 第三阶段：检测代表频道并生成 IPTV.txt（使用 ffprobe）
 def third_stage():
-    print("🧩 第三阶段开始：检测代表频道并分类生成 IPTV.txt")
+    print("🧩 第三阶段：检测代表频道生成 IPTV.txt")
     if not os.path.exists(ZUBO_FILE):
-        print("⚠️ 未找到 zubo.txt，跳过第三阶段")
+        print("⚠️ zubo.txt 不存在，跳过")
         return
 
-    with open(ZUBO_FILE, encoding="utf-8") as f:
-        lines = [x.strip() for x in f if x.strip()]
-
-    # 建立频道映射反查表
-    reverse_map = {}
-    for std, aliases in CHANNEL_MAPPING.items():
-        for name in aliases:
-            reverse_map[name] = std
-
-    # 映射标准频道名
-    mapped_lines = []
-    for line in lines:
-        if "," not in line:
-            continue
-        ch_name, url = line.split(",", 1)
-        ch_std = reverse_map.get(ch_name, ch_name)
-        mapped_lines.append((ch_std, url))
-
-    # 分组：按 IP 归类
-    ip_groups = {}
-    for ch, url in mapped_lines:
-        ip_match = re.search(r"http://(.*?)/", url)
-        if ip_match:
-            ip = ip_match.group(1)
-            ip_groups.setdefault(ip, []).append((ch, url))
-
-    # 代表频道检测函数
-    def is_playable(url, timeout=5):
+    def check_stream(url, timeout=5):
         try:
-            r = requests.get(url.split("$")[0], timeout=timeout, stream=True)
-            return r.status_code == 200
+            result = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_streams", "-i", url],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout + 2
+            )
+            return b"codec_type" in result.stdout
         except:
             return False
 
+    # 按 IP 分组
+    groups = {}
+    with open(ZUBO_FILE, encoding="utf-8") as f:
+        for line in f:
+            if "," not in line:
+                continue
+            ch_name, url = line.strip().split(",", 1)
+            m = re.match(r"http://(.*?)/", url)
+            if m:
+                ip = m.group(1)
+                groups.setdefault(ip, []).append((ch_name, url))
+
+    # 对每个 IP，只检测代表频道（CCTV1 / 湖南卫视 / 可自定义）
     valid_lines = []
-    for ip, entries in ip_groups.items():
-        # 优先检测 CCTV1，其次可以检测湖南卫视
-        rep_channels = [u for c, u in entries if c == "CCTV1"]
+    for ip, entries in groups.items():
+        rep_channels = [u for c, u in entries if c == "CCTV1"]  # 可改为湖南卫视等
         if not rep_channels:
-            rep_channels = [u for c, u in entries if c == "湖南卫视"]
-        if not rep_channels:
-            continue  # 没有代表频道，直接丢弃
-
-        # 检测代表频道是否可播
-        if any(is_playable(u) for u in rep_channels):
-            # 代表频道可播，保留整组 IP
+            continue
+        playable = any(check_stream(u) for u in rep_channels)
+        if playable:
             valid_lines.extend([f"{c},{u}" for c, u in entries])
-        else:
-            print(f"🚫 {ip} 代表频道不可播，丢弃整组 IP")
 
-    # 分类排序输出
-    ordered_lines = []
-    for category, names in CHANNEL_CATEGORIES.items():
-        ordered_lines.append(f"{category},#genre#")
-        for ch in names:
-            for line in valid_lines:
-                if line.startswith(ch + ","):
-                    ordered_lines.append(line)
-        ordered_lines.append("")  # 分隔
-
+    # 分类输出
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
-        for line in ordered_lines:
-            f.write(line + "\n")
-
-    print(f"✅ 第三阶段完成，生成 IPTV.txt 共 {len(valid_lines)} 条有效频道")
+        for cat, names in CHANNEL_CATEGORIES.items():
+            f.write(f"{cat},#genre#\n")
+            for line in valid_lines:
+                ch = line.split(",", 1)[0]
+                if ch in names:
+                    f.write(line + "\n")
+            f.write("\n")
+    print(f"✅ IPTV.txt 生成完成，共 {len(valid_lines)} 条")
 
     # 推送 IPTV.txt
-    os.system('git config --global user.name "github-actions"')
-    os.system('git config --global user.email "github-actions@users.noreply.github.com"')
     os.system("git add IPTV.txt")
     os.system('git commit -m "自动更新 IPTV.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main")
+    print("🚀 IPTV.txt 已推送")
+
 # ===============================
-# 主流程
+# 主执行逻辑
 if __name__ == "__main__":
     run_count = first_stage()
     if run_count in [12, 24, 36, 48, 60, 72]:
-        zubo_data = second_stage()
-        third_stage(zubo_data)
+        second_stage()
+        third_stage()

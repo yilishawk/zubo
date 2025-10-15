@@ -1,7 +1,6 @@
 import os
 import re
 import time
-import random
 import requests
 import concurrent.futures
 import subprocess
@@ -152,7 +151,7 @@ def second_stage():
     print(f"🎯 第二阶段完成，zubo.txt 共 {len(unique)} 条 URL")
 
 # ===============================
-# 第三阶段：检测 + 测速 + 分类排序
+# 第三阶段：CCTV1 检测 + 分类排序（无测速）
 def normalize_channel_name(name):
     for std, aliases in CHANNEL_MAPPING.items():
         for alias in aliases:
@@ -172,22 +171,8 @@ def ffprobe_check(url, timeout=5):
     except Exception:
         return False
 
-def test_latency(url):
-    start = time.time()
-    try:
-        r = requests.get(url, timeout=3, stream=True)
-        next(r.iter_content(1))
-        return time.time() - start
-    except Exception:
-        return 999
-    finally:
-        try:
-            r.close()
-        except:
-            pass
-
 def third_stage():
-    print("🧩 第三阶段开始：CCTV1 检测 + 湖南卫视测速 + 分类排序")
+    print("🧩 第三阶段开始：多线程 ffprobe 检测 CCTV1 并生成 IPTV.txt")
     if not os.path.exists(ZUBO_FILE):
         print("⚠️ 未找到 zubo.txt，跳过")
         return
@@ -225,29 +210,10 @@ def third_stage():
             if r:
                 valid_ips.append(r)
 
-    # ---- Step 2: 测速 ----
-    ip_speeds = []
-
-    def speed_test(ip, entries):
-        rep_urls = [url for ch, url in entries if ch == "湖南卫视"]
-        if not rep_urls:
-            rep_urls = [entries[0][1]]  # 随机选择一个
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as exe:
-            speeds = list(exe.map(test_latency, rep_urls))
-        return (ip, min(speeds))
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
-        futures = [executor.submit(speed_test, ip, entries) for ip, entries in valid_ips]
-        for fut in concurrent.futures.as_completed(futures):
-            ip, spd = fut.result()
-            ip_speeds.append((ip, spd))
-
-    ip_speeds.sort(key=lambda x: x[1])
-
-    # ---- Step 3: 分类输出 ----
+    # ---- Step 2: 分类输出 ----
     category_map = {cat: [] for cat in CHANNEL_CATEGORIES.keys()}
-    for ip, _ in ip_speeds:
-        for ch, url in ip_groups[ip]:
+    for ip, entries in valid_ips:
+        for ch, url in entries:
             for cat, names in CHANNEL_CATEGORIES.items():
                 if ch in names:
                     category_map[cat].append(f"{ch},{url}")
@@ -263,12 +229,13 @@ def third_stage():
     os.system("git add IPTV.txt")
     os.system('git commit -m "自动更新 IPTV.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main")
-    print(f"✅ 第三阶段完成，生成 IPTV.txt 共 {sum(len(v) for v in category_map.values())} 条频道")
+    print(f"✅ 第三阶段完成，IPTV.txt 共 {sum(len(v) for v in category_map.values())} 条频道")
 
 # ===============================
 # 主流程
 if __name__ == "__main__":
     run_count = first_stage()
+    # 第二阶段触发条件：每 12 次运行触发
     if run_count in [12, 24, 36, 48, 60, 72]:
         second_stage()
         third_stage()

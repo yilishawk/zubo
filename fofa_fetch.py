@@ -198,62 +198,85 @@ def second_stage():
     return unique
 
 # ===============================
-# 第三阶段：湖南卫视检测生成 IPTV.txt
-def third_stage(zubo_lines):
-    print("🧩 第三阶段开始：湖南卫视检测生成 IPTV.txt")
-
-    # 分组：按 IP 归类
-    groups = {}
-    for line in zubo_lines.values():
-        ch_name, url = line.split(",", 1)
-        ip = re.search(r"http://(.*?)/", url).group(1)
-        groups.setdefault(ip, []).append((ch_name, url))
-
-    print(f"共解析到 {len(groups)} 个分组。开始湖南卫视检测...")
-
-    valid_groups = []
-    for grp_name, entries in groups.items():
-        hunans = [(n, u) for n, u in entries if normalize_channel_name(n) == "湖南卫视"]
-        if not hunans:
-            continue
-        latencies = [test_url_latency(u) for _, u in hunans]
-        latencies = [l for l in latencies if l is not None]
-        if latencies:
-            best = min(latencies)
-            valid_groups.append((grp_name, best, entries))
-
-    if not valid_groups:
-        print("没有可用分组（湖南卫视检测）。退出。")
+# 第三阶段：严格检测代表频道，生成 IPTV.txt
+def third_stage():
+    print("🧩 第三阶段开始：检测代表频道并分类生成 IPTV.txt")
+    if not os.path.exists(ZUBO_FILE):
+        print("⚠️ 未找到 zubo.txt，跳过第三阶段")
         return
 
-    # 排序并分类
-    valid_groups.sort(key=lambda x: x[1])
-    categorized = {cat: [] for cat in CHANNEL_CATEGORIES}
-    for _, _, entries in valid_groups:
-        for ch_name, url in entries:
-            std_name = normalize_channel_name(ch_name)
-            for cat, names in CHANNEL_CATEGORIES.items():
-                if std_name in names:
-                    categorized[cat].append(f"{std_name},{url}")
-                    break
+    with open(ZUBO_FILE, encoding="utf-8") as f:
+        lines = [x.strip() for x in f if x.strip()]
 
-    # 写入 IPTV.txt
+    # 建立频道映射反查表
+    reverse_map = {}
+    for std, aliases in CHANNEL_MAPPING.items():
+        for name in aliases:
+            reverse_map[name] = std
+
+    # 映射标准频道名
+    mapped_lines = []
+    for line in lines:
+        if "," not in line:
+            continue
+        ch_name, url = line.split(",", 1)
+        ch_std = reverse_map.get(ch_name, ch_name)
+        mapped_lines.append((ch_std, url))
+
+    # 分组：按 IP 归类
+    ip_groups = {}
+    for ch, url in mapped_lines:
+        ip_match = re.search(r"http://(.*?)/", url)
+        if ip_match:
+            ip = ip_match.group(1)
+            ip_groups.setdefault(ip, []).append((ch, url))
+
+    # 代表频道检测函数
+    def is_playable(url, timeout=5):
+        try:
+            r = requests.get(url.split("$")[0], timeout=timeout, stream=True)
+            return r.status_code == 200
+        except:
+            return False
+
+    valid_lines = []
+    for ip, entries in ip_groups.items():
+        # 优先检测 CCTV1，其次可以检测湖南卫视
+        rep_channels = [u for c, u in entries if c == "CCTV1"]
+        if not rep_channels:
+            rep_channels = [u for c, u in entries if c == "湖南卫视"]
+        if not rep_channels:
+            continue  # 没有代表频道，直接丢弃
+
+        # 检测代表频道是否可播
+        if any(is_playable(u) for u in rep_channels):
+            # 代表频道可播，保留整组 IP
+            valid_lines.extend([f"{c},{u}" for c, u in entries])
+        else:
+            print(f"🚫 {ip} 代表频道不可播，丢弃整组 IP")
+
+    # 分类排序输出
+    ordered_lines = []
+    for category, names in CHANNEL_CATEGORIES.items():
+        ordered_lines.append(f"{category},#genre#")
+        for ch in names:
+            for line in valid_lines:
+                if line.startswith(ch + ","):
+                    ordered_lines.append(line)
+        ordered_lines.append("")  # 分隔
+
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
-        for cat, lines in categorized.items():
-            f.write(f"{cat},#genre#\n")
-            for line in sorted(set(lines)):
-                f.write(line + "\n")
-            f.write("\n")
+        for line in ordered_lines:
+            f.write(line + "\n")
 
-    print(f"✅ 第三阶段完成，IPTV.txt 已生成")
+    print(f"✅ 第三阶段完成，生成 IPTV.txt 共 {len(valid_lines)} 条有效频道")
 
-    # 推送
+    # 推送 IPTV.txt
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
     os.system("git add IPTV.txt")
     os.system('git commit -m "自动更新 IPTV.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main")
-
 # ===============================
 # 主流程
 if __name__ == "__main__":

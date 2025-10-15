@@ -122,7 +122,6 @@ def second_stage():
         if not os.path.exists(rtp_path):
             continue
 
-        province_operator = ip_file.replace(".txt", "")
         with open(ip_path, encoding="utf-8") as f1, open(rtp_path, encoding="utf-8") as f2:
             ip_lines = [x.strip() for x in f1 if x.strip()]
             rtp_lines = [x.strip() for x in f2 if x.strip()]
@@ -144,19 +143,10 @@ def second_stage():
         if url_part not in unique:
             unique[url_part] = line
 
-    # 写入 zubo.txt
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:
         for line in unique.values():
             f.write(line + "\n")
     print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL")
-
-    # 推送 zubo.txt
-    os.system('git config --global user.name "github-actions"')
-    os.system('git config --global user.email "github-actions@users.noreply.github.com"')
-    os.system("git add zubo.txt")
-    os.system('git commit -m "自动更新 zubo.txt" || echo "⚠️ 无需提交"')
-    os.system("git push origin main")
-    print("🚀 zubo.txt 已推送")
 
 # ===============================
 # 第三阶段：检测代表频道并生成 IPTV.txt（使用 ffprobe）
@@ -178,7 +168,6 @@ def third_stage():
         except:
             return False
 
-    # 按 IP 分组
     groups = {}
     with open(ZUBO_FILE, encoding="utf-8") as f:
         for line in f:
@@ -190,17 +179,15 @@ def third_stage():
                 ip = m.group(1)
                 groups.setdefault(ip, []).append((ch_name, url))
 
-    # 对每个 IP，只检测代表频道（CCTV1 / 湖南卫视 / 可自定义）
     valid_lines = []
     for ip, entries in groups.items():
-        rep_channels = [u for c, u in entries if c == "CCTV1"]  # 可改为湖南卫视等
+        rep_channels = [u for c, u in entries if c == "CCTV1"]
         if not rep_channels:
             continue
         playable = any(check_stream(u) for u in rep_channels)
         if playable:
             valid_lines.extend([f"{c},{u}" for c, u in entries])
 
-    # 分类输出
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
         for cat, names in CHANNEL_CATEGORIES.items():
             f.write(f"{cat},#genre#\n")
@@ -211,11 +198,17 @@ def third_stage():
             f.write("\n")
     print(f"✅ IPTV.txt 生成完成，共 {len(valid_lines)} 条")
 
-    # 推送 IPTV.txt
-    os.system("git add IPTV.txt")
-    os.system('git commit -m "自动更新 IPTV.txt" || echo "⚠️ 无需提交"')
-    os.system("git push origin main")
-    print("🚀 IPTV.txt 已推送")
+# ===============================
+# 文件推送
+def push_all_files():
+    print("🚀 推送所有更新文件到 GitHub...")
+    os.system('git config --global user.name "github-actions"')
+    os.system('git config --global user.email "github-actions@users.noreply.github.com"')
+    os.system("git add 计数.txt")
+    os.system("git add ip/*.txt || true")
+    os.system("git add zubo.txt IPTV.txt || true")
+    os.system('git commit -m "自动更新：计数、IP文件、zubo.txt、IPTV.txt" || echo "⚠️ 无需提交"')
+    os.system("git push origin main || echo '⚠️ 推送失败'")
 
 # ===============================
 # 主执行逻辑
@@ -224,3 +217,4 @@ if __name__ == "__main__":
     if run_count in [12, 24, 36, 48, 60, 72]:
         second_stage()
         third_stage()
+    push_all_files()

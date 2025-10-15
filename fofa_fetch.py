@@ -22,139 +22,16 @@ IPTV_FILE = "IPTV.txt"
 # ===============================
 # 分类与映射配置
 CHANNEL_CATEGORIES = {
-    "央视频道": [
-        "CCTV1", "CCTV2", "CCTV3", "CCTV4", "CCTV4欧洲", "CCTV4美洲", "CCTV5", "CCTV5+", "CCTV6", "CCTV7",
-        "CCTV8", "CCTV9", "CCTV10", "CCTV11", "CCTV12", "CCTV13", "CCTV14", "CCTV15", "CCTV16", "CCTV17", "CCTV4K", "CCTV8K",
-        "兵器科技", "风云音乐", "风云足球", "风云剧场", "怀旧剧场", "第一剧场", "女性时尚", "世界地理", "央视台球", "高尔夫网球",
-        "央视文化精品", "卫生健康", "电视指南"
-    ],
-    "卫视频道": [
-        "湖南卫视", "浙江卫视", "江苏卫视", "东方卫视", "深圳卫视", "北京卫视", "广东卫视", "广西卫视", "东南卫视", "海南卫视",
-        "河北卫视", "河南卫视", "湖北卫视", "江西卫视", "四川卫视", "重庆卫视", "贵州卫视", "云南卫视", "天津卫视", "安徽卫视",
-        "山东卫视", "辽宁卫视", "黑龙江卫视", "吉林卫视", "内蒙古卫视", "宁夏卫视", "山西卫视", "陕西卫视", "甘肃卫视", "青海卫视",
-        "新疆卫视", "西藏卫视", "三沙卫视", "兵团卫视", "延边卫视", "安多卫视", "康巴卫视", "农林卫视", "山东教育卫视",
-        "中国教育1台", "中国教育2台", "中国教育3台", "中国教育4台", "早期教育"
-    ],
-    "数字频道": [
-        "CHC动作电影", "CHC家庭影院", "CHC影迷电影", "淘电影", "淘精彩", "淘剧场", "淘4K", "淘娱乐", "淘BABY", "淘萌宠", "重温经典",
-        "星空卫视", "CHANNEL[V]", "凤凰卫视中文台", "凤凰卫视资讯台", "凤凰卫视香港台", "凤凰卫视电影台", "求索纪录", "求索科学",
-        "求索生活", "求索动物", "纪实人文", "金鹰纪实", "纪实科教", "睛彩青少", "睛彩竞技", "睛彩篮球", "睛彩广场舞", "魅力足球", "五星体育",
-        "劲爆体育", "快乐垂钓", "茶频道", "先锋乒羽", "天元围棋", "汽摩", "梨园频道", "文物宝库", "武术世界", "哒啵赛事", "哒啵电竞", "黑莓电影", "黑莓动画", 
-        "乐游", "生活时尚", "都市剧场", "欢笑剧场", "游戏风云", "金色学堂", "动漫秀场", "新动漫", "卡酷少儿", "金鹰卡通", "优漫卡通", "哈哈炫动", "嘉佳卡通", 
-        "中国交通", "中国天气", "华数4K", "华数星影", "华数动作影院", "华数喜剧影院", "华数家庭影院", "华数经典电影", "华数热播剧场", "华数碟战剧场",
-        "华数军旅剧场", "华数城市剧场", "华数武侠剧场", "华数古装剧场", "华数魅力时尚", "华数少儿动画", "华数动画", "iHOT爱喜剧", "iHOT爱科幻", 
-        "iHOT爱院线", "iHOT爱悬疑", "iHOT爱历史", "iHOT爱谍战", "iHOT爱旅行", "iHOT爱幼教", "iHOT爱玩具", "iHOT爱体育", "iHOT爱赛车", "iHOT爱浪漫", 
-        "iHOT爱奇谈", "iHOT爱科学", "iHOT爱动漫",
-    ]
+    "央视频道": ["CCTV1", "CCTV2"],
+    "卫视频道": ["湖南卫视", "浙江卫视"],
+    "数字频道": ["CHC动作电影", "CHC家庭影院", "CHC影迷电影"],
 }
 
-# ===== 映射（别名 -> 标准名） =====
 CHANNEL_MAPPING = {
     "CCTV1": ["CCTV-1", "CCTV-1 HD", "CCTV1 HD", "CCTV-1综合", "CCTV1 4M1080", "CCTV1 5M1080HEVC"],
     "CCTV2": ["CCTV-2", "CCTV-2 HD", "CCTV2 HD", "CCTV-2财经", "CCTV2 720", "节目暂时不可用 1080"],
-    "CCTV3": ["CCTV-3", "CCTV-3 HD", "CCTV3 HD", "CCTV-3综艺", "CCTV3 4M1080"],
-    "CCTV4": ["CCTV-4", "CCTV-4 HD", "CCTV4 HD", "CCTV4a", "CCTV4A", "CCTV-4中文国际", "CCTV4 4M1080"],
-    "CCTV4欧洲": ["CCTV-4欧洲", "CCTV-4欧洲", "CCTV4欧洲 HD", "CCTV-4 欧洲", "CCTV4o", "CCTV4O", "CCTV-4中文国际欧洲", "CCTV4中文欧洲"],
-    "CCTV4美洲": ["CCTV-4美洲", "CCTV-4北美", "CCTV4美洲 HD", "CCTV-4 美洲", "CCTV4m", "CCTV4M", "CCTV-4中文国际美洲", "CCTV4中文美洲"],
-    "CCTV5": ["CCTV-5", "CCTV-5 HD", "CCTV5 HD", "CCTV-5体育", "CCTV5 4M1080"],
-    "CCTV5+": ["CCTV-5+", "CCTV-5+ HD", "CCTV5+ HD", "CCTV-5+体育赛事", "CCTV5+ 4M1080"],
-    "CCTV6": ["CCTV-6", "CCTV-6 HD", "CCTV6 HD", "CCTV-6电影", "CCTV6 4M1080"],
-    "CCTV7": ["CCTV-7", "CCTV-7 HD", "CCTV7 HD", "CCTV-7国防军事", "CCTV7 4M1080"],
-    "CCTV8": ["CCTV-8", "CCTV-8 HD", "CCTV8 HD", "CCTV-8电视剧", "CCTV8 4M1080"],
-    "CCTV9": ["CCTV-9", "CCTV-9 HD", "CCTV9 HD", "CCTV-9纪录", "CCTV9 4M1080"],
-    "CCTV10": ["CCTV-10", "CCTV-10 HD", "CCTV10 HD", "CCTV-10科教", "CCTV10 4M1080", "CCTV10 5M1080HEVC"],
-    "CCTV11": ["CCTV-11", "CCTV-11 HD", "CCTV11 HD", "CCTV-11戏曲", "CCTV11 5M1080HEVC"],
-    "CCTV12": ["CCTV-12", "CCTV-12 HD", "CCTV12 HD", "CCTV-12社会与法", "CCTV12 4M1080", "CCTV12 5M1080HEVC"],
-    "CCTV13": ["CCTV-13", "CCTV-13 HD", "CCTV13 HD", "CCTV-13新闻", "CCTV13 5M1080HEVC", "CCTV13 4M1080"],
-    "CCTV14": ["CCTV-14", "CCTV-14 HD", "CCTV14 HD", "CCTV-14少儿", "CCTV14 4M1080", "CCTV14 5M1080HEVC"],
-    "CCTV15": ["CCTV-15", "CCTV-15 HD", "CCTV15 HD", "CCTV-15音乐", "CCTV15 5M1080HEVC"],
-    "CCTV16": ["CCTV-16", "CCTV-16 HD", "CCTV-16 4K", "CCTV-16奥林匹克", "CCTV16 4K", "CCTV-16奥林匹克4K", "CCTV16 4M1080"],
-    "CCTV17": ["CCTV-17", "CCTV-17 HD", "CCTV17 HD", "CCTV-17农业农村", "CCTV17 4M1080"],
-    "CCTV4K": ["CCTV4K超高清", "CCTV-4K超高清", "CCTV-4K 超高清", "CCTV 4K", "CCTV4K超"],
-    "CCTV8K": ["CCTV8K超高清", "CCTV-8K超高清", "CCTV-8K 超高清", "CCTV 8K", "CCTV8K超"],
-    "兵器科技": ["CCTV-兵器科技", "CCTV兵器科技"],
-    "风云音乐": ["CCTV-风云音乐", "CCTV风云音乐"],
-    "第一剧场": ["CCTV-第一剧场", "CCTV第一剧场"],
-    "风云足球": ["CCTV-风云足球", "CCTV风云足球"],
-    "风云剧场": ["CCTV-风云剧场", "CCTV风云剧场"],
-    "怀旧剧场": ["CCTV-怀旧剧场", "CCTV怀旧剧场"],
-    "女性时尚": ["CCTV-女性时尚", "CCTV女性时尚"],
-    "世界地理": ["CCTV-世界地理", "CCTV世界地理"],
-    "央视台球": ["CCTV-央视台球", "CCTV央视台球"],
-    "高尔夫网球": ["CCTV-高尔夫网球", "CCTV高尔夫网球", "CCTV央视高网", "CCTV-高尔夫·网球", "央视高网"],
-    "央视文化精品": ["CCTV-央视文化精品", "CCTV央视文化精品", "CCTV文化精品", "CCTV-文化精品", "文化精品"],
-    "卫生健康": ["CCTV-卫生健康", "CCTV卫生健康"],
-    "电视指南": ["CCTV-电视指南", "CCTV电视指南"],
-    "农林卫视": ["陕西农林卫视"],
-    "三沙卫视": ["海南三沙卫视"],
-    "兵团卫视": ["新疆兵团卫视"],
-    "延边卫视": ["吉林延边卫视"],
-    "安多卫视": ["青海安多卫视"],
-    "康巴卫视": ["四川康巴卫视"],
-    "山东教育卫视": ["山东教育", "山东教育卫视 576"],
-    "中国教育1台": ["CETV1", "中国教育一台", "中国教育1", "CETV-1 综合教育", "CETV-1", "中国教育1 576"],
-    "中国教育2台": ["CETV2", "中国教育二台", "中国教育2", "CETV-2 空中课堂", "CETV-2", "中国教育2 4M576"],
-    "中国教育3台": ["CETV3", "中国教育三台", "中国教育3", "CETV-3 教育服务", "CETV-3"],
-    "中国教育4台": ["CETV4", "中国教育四台", "中国教育4", "CETV-4 职业教育", "CETV-4", "中国教育4 4M576"],
-    "早期教育": ["中国教育5台", "中国教育5", "中国教育五台", "CETV早期教育", "华电早期教育", "CETV 早期教育", "CETV-5", "CETV5"],
-    "CHC动作电影": ["CHC-动作电影"],
-    "CHC家庭影院": ["CHC-家庭影院"],
-    "CHC影迷电影": ["CHC高清电影", "CHC-影迷电影", "影迷电影", "chc高清电影"],
-    "淘电影": ["IPTV淘电影", "北京IPTV淘电影", "北京淘电影"],
-    "淘精彩": ["IPTV淘精彩", "北京IPTV淘精彩", "北京淘精彩"],
-    "淘剧场": ["IPTV淘剧场", "北京IPTV淘剧场", "北京淘剧场"],
-    "淘4K": ["IPTV淘4K", "北京IPTV4K超清", "北京淘4K", "淘4K", "淘 4K"],
-    "淘娱乐": ["IPTV淘娱乐", "北京IPTV淘娱乐", "北京淘娱乐"],
-    "淘BABY": ["IPTV淘BABY", "北京IPTV淘BABY", "北京淘BABY", "IPTV淘baby", "北京IPTV淘baby", "北京淘baby"],
-    "淘萌宠": ["IPTV淘萌宠", "北京IPTV萌宠TV", "北京淘萌宠"],
-    "魅力足球": ["上海魅力足球"],
-    "睛彩青少": ["睛彩羽毛球"],
-    "求索纪录": ["求索记录", "求索纪录4K", "求索记录4K", "求索纪录 4K", "求索记录 4K"],
-    "金鹰纪实": ["湖南金鹰纪实", "金鹰记实"],
-    "纪实科教": ["北京纪实科教", "BRTV纪实科教", "纪实科教8K"],
-    "星空卫视": ["星空衛視", "星空衛视", "星空卫視"],
-    "CHANNEL[V]": ["CHANNEL-V", "Channel[V]"],
-    "凤凰卫视中文台": ["凤凰中文", "凤凰中文台", "凤凰卫视中文", "凤凰卫视"],
-    "凤凰卫视香港台": ["凤凰香港台", "凤凰卫视香港", "凤凰香港"],
-    "凤凰卫视资讯台": ["凤凰资讯", "凤凰资讯台", "凤凰咨询", "凤凰咨询台", "凤凰卫视咨询台", "凤凰卫视资讯", "凤凰卫视咨询"],
-    "凤凰卫视电影台": ["凤凰电影", "凤凰电影台", "凤凰卫视电影", "鳳凰衛視電影台", " 凤凰电影"],
-    "茶频道": ["湖南茶频道"],
-    "快乐垂钓": ["湖南快乐垂钓"],
-    "先锋乒羽": ["湖南先锋乒羽"],
-    "天元围棋": ["天元围棋频道"],
-    "汽摩": ["重庆汽摩", "汽摩频道", "重庆汽摩频道"],
-    "梨园频道": ["河南梨园频道", "梨园", "河南梨园"],
-    "文物宝库": ["河南文物宝库"],
-    "武术世界": ["河南武术世界"],
-    "乐游": ["乐游频道", "上海乐游频道", "乐游纪实", "SiTV乐游频道", "SiTV 乐游频道"],
-    "欢笑剧场": ["上海欢笑剧场4K", "欢笑剧场 4K", "欢笑剧场4K", "上海欢笑剧场"],
-    "生活时尚": ["生活时尚4K", "SiTV生活时尚", "上海生活时尚"],
-    "都市剧场": ["都市剧场4K", "SiTV都市剧场", "上海都市剧场"],
-    "游戏风云": ["游戏风云4K", "SiTV游戏风云", "上海游戏风云"],
-    "金色学堂": ["金色学堂4K", "SiTV金色学堂", "上海金色学堂"],
-    "动漫秀场": ["动漫秀场4K", "SiTV动漫秀场", "上海动漫秀场"],
-    "卡酷少儿": ["北京KAKU少儿", "BRTV卡酷少儿", "北京卡酷少儿", "卡酷动画"],
-    "哈哈炫动": ["炫动卡通", "上海哈哈炫动"],
-    "优漫卡通": ["江苏优漫卡通", "优漫漫画"],
-    "金鹰卡通": ["湖南金鹰卡通"],
-    "中国交通": ["中国交通频道"],
-    "中国天气": ["中国天气频道"],
-    "华数4K": ["华数低于4K", "华数4K电影", "华数爱上4K"],
-    "iHOT爱喜剧": ["iHOT 爱喜剧", "IHOT 爱喜剧", "IHOT爱喜剧", "ihot爱喜剧", "爱喜剧", "ihot 爱喜剧"],
-    "iHOT爱科幻": ["iHOT 爱科幻", "IHOT 爱科幻", "IHOT爱科幻", "ihot爱科幻", "爱科幻", "ihot 爱科幻"],
-    "iHOT爱院线": ["iHOT 爱院线", "IHOT 爱院线", "IHOT爱院线", "ihot爱院线", "ihot 爱院线", "爱院线"],
-    "iHOT爱悬疑": ["iHOT 爱悬疑", "IHOT 爱悬疑", "IHOT爱悬疑", "ihot爱悬疑", "ihot 爱悬疑", "爱悬疑"],
-    "iHOT爱历史": ["iHOT 爱历史", "IHOT 爱历史", "IHOT爱历史", "ihot爱历史", "ihot 爱历史", "爱历史"],
-    "iHOT爱谍战": ["iHOT 爱谍战", "IHOT 爱谍战", "IHOT爱谍战", "ihot爱谍战", "ihot 爱谍战", "爱谍战"],
-    "iHOT爱旅行": ["iHOT 爱旅行", "IHOT 爱旅行", "IHOT爱旅行", "ihot爱旅行", "ihot 爱旅行", "爱旅行"],
-    "iHOT爱幼教": ["iHOT 爱幼教", "IHOT 爱幼教", "IHOT爱幼教", "ihot爱幼教", "ihot 爱幼教", "爱幼教"],
-    "iHOT爱玩具": ["iHOT 爱玩具", "IHOT 爱玩具", "IHOT爱玩具", "ihot爱玩具", "ihot 爱玩具", "爱玩具"],
-    "iHOT爱体育": ["iHOT 爱体育", "IHOT 爱体育", "IHOT爱体育", "ihot爱体育", "ihot 爱体育", "爱体育"],
-    "iHOT爱赛车": ["iHOT 爱赛车", "IHOT 爱赛车", "IHOT爱赛车", "ihot爱赛车", "ihot 爱赛车", "爱赛车"],
-    "iHOT爱浪漫": ["iHOT 爱浪漫", "IHOT 爱浪漫", "IHOT爱浪漫", "ihot爱浪漫", "ihot 爱浪漫", "爱浪漫"],
-    "iHOT爱奇谈": ["iHOT 爱奇谈", "IHOT 爱奇谈", "IHOT爱奇谈", "ihot爱奇谈", "ihot 爱奇谈", "爱奇谈"],
-    "iHOT爱科学": ["iHOT 爱科学", "IHOT 爱科学", "IHOT爱科学", "ihot爱科学", "ihot 爱科学", "爱科学"],
-    "iHOT爱动漫": ["iHOT 爱动漫", "IHOT 爱动漫", "IHOT爱动漫", "ihot爱动漫", "ihot 爱动漫", "爱动漫"],
+    "湖南卫视": ["湖南", "湖南HD", "湖南卫视高清"],
+    "浙江卫视": ["浙江", "浙江HD", "浙江卫视高清"],
 }
 
 # ===============================
@@ -196,7 +73,26 @@ def get_isp(ip):
     return "未知"
 
 # ===============================
-# 第一阶段：爬取 + 分类写入
+# 工具函数
+def normalize_channel_name(name):
+    for std, aliases in CHANNEL_MAPPING.items():
+        for alias in aliases:
+            if alias.lower() in name.lower():
+                return std
+    return name.strip()
+
+def test_url_latency(url, timeout=5):
+    try:
+        start = time.time()
+        r = requests.get(url, timeout=timeout, stream=True)
+        if r.status_code == 200:
+            return time.time() - start
+    except:
+        return None
+    return None
+
+# ===============================
+# 第一阶段：爬取 IP
 def first_stage():
     all_ips = set()
     for url, filename in FOFA_URLS.items():
@@ -235,9 +131,9 @@ def first_stage():
     return run_count
 
 # ===============================
-# 第二阶段：检测并生成 zubo.txt（严格模式）
+# 第二阶段：生成并推送 zubo.txt
 def second_stage():
-    print("🔔 第二阶段触发：生成 zubo.txt（严格检测模式）")
+    print("🔔 第二阶段触发：生成 zubo.txt")
     combined_lines = []
     for ip_file in os.listdir(IP_DIR):
         if not ip_file.endswith(".txt"):
@@ -250,15 +146,16 @@ def second_stage():
         province_operator = ip_file.replace(".txt", "")
         with open(ip_path, encoding="utf-8") as f1, open(rtp_path, encoding="utf-8") as f2:
             ip_lines = [x.strip() for x in f1 if x.strip()]
-            rtp_lines = [x.strip() for x in f2 if x.strip() and "," in x]  # 过滤格式不对的行
+            rtp_lines = [x.strip() for x in f2 if x.strip()]
 
         if not ip_lines or not rtp_lines:
             continue
 
+        # 检测第一个频道可用性
         first_rtp_line = rtp_lines[0]
         if "," not in first_rtp_line:
             continue
-        channel_name, rtp_url = first_rtp_line.split(",", 1)
+        ch_name, rtp_url = first_rtp_line.split(",", 1)
 
         def build_and_check(ip_port):
             url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
@@ -266,16 +163,12 @@ def second_stage():
                 r = requests.get(url, timeout=5, stream=True)
                 if r.status_code == 200:
                     return ip_port
-            except Exception:
+            except:
                 return None
             return None
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as exe:
             valid_ips = [ip for ip in exe.map(build_and_check, ip_lines) if ip]
-
-        if not valid_ips:
-            print(f"🚫 {province_operator} 没有可用 IP，跳过")
-            continue
 
         for ip_port in valid_ips:
             for rtp_line in rtp_lines:
@@ -291,120 +184,80 @@ def second_stage():
         if url_part not in unique:
             unique[url_part] = line
 
+    # 写入 zubo.txt 并推送
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:
         for line in unique.values():
             f.write(line + "\n")
-    print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL")
+    print(f"🎯 第二阶段完成，zubo.txt 共 {len(unique)} 条 URL")
 
-    # 推送到仓库
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
     os.system("git add zubo.txt")
     os.system('git commit -m "自动更新 zubo.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main")
-    print("🚀 zubo.txt 已推送到仓库")
+    return unique
+
 # ===============================
-# 第三阶段：湖南卫视延迟检测 + 分类生成 IPTV.txt
-def third_stage():
-    print("🧩 第三阶段开始：湖南卫视延迟检测并生成 IPTV.txt")
-    if not os.path.exists(ZUBO_FILE):
-        print("⚠️ 未找到 zubo.txt，跳过第三阶段")
-        return
-
-    with open(ZUBO_FILE, encoding="utf-8") as f:
-        lines = [x.strip() for x in f if x.strip()]
-
-    # 建立频道映射反查表
-    reverse_map = {}
-    for std, aliases in CHANNEL_MAPPING.items():
-        for name in aliases:
-            reverse_map[name] = std
-
-    # 映射标准频道名
-    mapped_lines = []
-    for line in lines:
-        ch_name, url = line.split(",", 1)
-        ch_std = reverse_map.get(ch_name, ch_name)
-        mapped_lines.append((ch_std, url))
+# 第三阶段：湖南卫视检测生成 IPTV.txt
+def third_stage(zubo_lines):
+    print("🧩 第三阶段开始：湖南卫视检测生成 IPTV.txt")
 
     # 分组：按 IP 归类
-    ip_groups = {}
-    for ch, url in mapped_lines:
-        ip_match = re.search(r"http://(.*?)/", url)
-        if ip_match:
-            ip = ip_match.group(1)
-            ip_groups.setdefault(ip, []).append((ch, url))
+    groups = {}
+    for line in zubo_lines.values():
+        ch_name, url = line.split(",", 1)
+        ip = re.search(r"http://(.*?)/", url).group(1)
+        groups.setdefault(ip, []).append((ch_name, url))
 
-    # 延迟检测函数
-    def test_url_latency(url, timeout=5):
-        try:
-            start = time.time()
-            r = requests.get(url, timeout=timeout, stream=True)
-            if r.status_code == 200:
-                return time.time() - start
-        except:
-            return None
+    print(f"共解析到 {len(groups)} 个分组。开始湖南卫视检测...")
 
-    # 按湖南卫视可用性检测 IP 分组
-    print(f"共解析到 {len(ip_groups)} 个 IP 分组，开始湖南卫视延迟检测...")
     valid_groups = []
-    for ip, entries in ip_groups.items():
-        hunans = [(ch, url) for ch, url in entries if ch == "湖南卫视" or "湖南卫视" in ch]
+    for grp_name, entries in groups.items():
+        hunans = [(n, u) for n, u in entries if normalize_channel_name(n) == "湖南卫视"]
         if not hunans:
             continue
-        latencies = []
-        for ch, url in hunans:
-            lat = test_url_latency(url)
-            if lat is not None:
-                latencies.append(lat)
+        latencies = [test_url_latency(u) for _, u in hunans]
+        latencies = [l for l in latencies if l is not None]
         if latencies:
             best = min(latencies)
-            valid_groups.append((ip, best, entries))
-            print(f"分组可用: {ip} 延迟={best:.3f}s")
-        else:
-            print(f"分组不可用（湖南卫视均失败）: {ip}")
+            valid_groups.append((grp_name, best, entries))
 
     if not valid_groups:
-        print("❌ 没有可用分组（基于湖南卫视检测），退出第三阶段")
+        print("没有可用分组（湖南卫视检测）。退出。")
         return
 
-    # 按延迟排序，延迟低的优先
+    # 排序并分类
     valid_groups.sort(key=lambda x: x[1])
+    categorized = {cat: [] for cat in CHANNEL_CATEGORIES}
+    for _, _, entries in valid_groups:
+        for ch_name, url in entries:
+            std_name = normalize_channel_name(ch_name)
+            for cat, names in CHANNEL_CATEGORIES.items():
+                if std_name in names:
+                    categorized[cat].append(f"{std_name},{url}")
+                    break
 
-    # 生成 IPTV.txt 分类输出
-    mapped_channels = {}
-    for ip, _, entries in valid_groups:
-        counter = {}
-        for ch, url in entries:
-            num = counter.get(ch, 1)
-            counter[ch] = num + 1
-            url_with_tag = f"{url}${ip}{num}"  # 给每个 IP + 序号的唯一标识
-            lst = mapped_channels.setdefault(ch, [])
-            if url_with_tag not in lst:
-                lst.append(url_with_tag)
-
-    # 按分类输出
+    # 写入 IPTV.txt
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
-        for category, names in CHANNEL_CATEGORIES.items():
-            f.write(f"{category},#genre#\n")
-            for ch in names:
-                for url in mapped_channels.get(ch, []):
-                    f.write(f"{ch},{url}\n")
+        for cat, lines in categorized.items():
+            f.write(f"{cat},#genre#\n")
+            for line in sorted(set(lines)):
+                f.write(line + "\n")
             f.write("\n")
 
-    print(f"✅ 第三阶段完成，生成 IPTV.txt 共 {sum(len(mapped_channels.get(ch, [])) for ch in mapped_channels)} 条频道")
+    print(f"✅ 第三阶段完成，IPTV.txt 已生成")
 
-    # 推送 zubo.txt 和 IPTV.txt
+    # 推送
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
-    os.system("git add zubo.txt IPTV.txt")
-    os.system('git commit -m "自动更新 zubo.txt & IPTV.txt" || echo "⚠️ 无需提交"')
+    os.system("git add IPTV.txt")
+    os.system('git commit -m "自动更新 IPTV.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main")
-    print("🚀 已推送 zubo.txt 和 IPTV.txt 到仓库")
+
 # ===============================
-# 主执行逻辑
+# 主流程
 if __name__ == "__main__":
     run_count = first_stage()
     if run_count in [12, 24, 36, 48, 60, 72]:
-        second_stage()
-        third_stage()
+        zubo_data = second_stage()
+        third_stage(zubo_data)

@@ -203,9 +203,12 @@ if os.path.exists(ZUBO_FILE):
 
     # 正确映射频道名
     mapped_lines = []
-    for ch_name, url in final_lines:
-        mapped_name = map_channel(ch_name)
-        mapped_lines.append((mapped_name, url))
+    for line in final_lines:
+        if "," in line:
+            ch_name, url = line.split(",", 1)
+            mapped_name = map_channel(ch_name.strip())
+            mapped_lines.append((mapped_name, url.strip()))
+
 
 
     # 分类

@@ -149,7 +149,8 @@ def second_stage():
     print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL")
 
 # ===============================
-# 第三阶段：检测代表频道并生成 IPTV.txt（使用 ffprobe）
+# ===============================
+# 第三阶段：检测代表频道并生成 IPTV.txt（严格分类排序 + URL去重）
 def third_stage():
     print("🧩 第三阶段：检测代表频道生成 IPTV.txt")
     if not os.path.exists(ZUBO_FILE):
@@ -168,6 +169,7 @@ def third_stage():
         except:
             return False
 
+    # 按 IP 分组
     groups = {}
     with open(ZUBO_FILE, encoding="utf-8") as f:
         for line in f:
@@ -179,6 +181,7 @@ def third_stage():
                 ip = m.group(1)
                 groups.setdefault(ip, []).append((ch_name, url))
 
+    # 检测代表频道（CCTV1）
     valid_lines = []
     for ip, entries in groups.items():
         rep_channels = [u for c, u in entries if c == "CCTV1"]
@@ -186,17 +189,20 @@ def third_stage():
             continue
         playable = any(check_stream(u) for u in rep_channels)
         if playable:
-            valid_lines.extend([f"{c},{u}" for c, u in entries])
+            valid_lines.extend(entries)
 
+    # ==== 分类 + 严格排序 + URL 去重 ====
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
-        for cat, names in CHANNEL_CATEGORIES.items():
+        for cat, channel_order in CHANNEL_CATEGORIES.items():
             f.write(f"{cat},#genre#\n")
-            for line in valid_lines:
-                ch = line.split(",", 1)[0]
-                if ch in names:
-                    f.write(line + "\n")
+            for ch in channel_order:
+                seen_urls = set()
+                for c, url in valid_lines:
+                    if c == ch and url not in seen_urls:
+                        f.write(f"{c},{url}\n")
+                        seen_urls.add(url)
             f.write("\n")
-    print(f"✅ IPTV.txt 生成完成，共 {len(valid_lines)} 条")
+    print(f"✅ IPTV.txt 生成完成（严格分类排序 + URL去重），共 {len(valid_lines)} 条")
 
 # ===============================
 # 文件推送

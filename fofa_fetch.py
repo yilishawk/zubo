@@ -10,7 +10,9 @@ import subprocess
 FOFA_URLS = {
     "https://fofa.info/result?qbase64=InVkcHh5IiAmJiBjb3VudHJ5PSJDTiI%3D": "ip.txt",
 }
-HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+}
 
 COUNTER_FILE = "计数.txt"
 IP_DIR = "ip"
@@ -46,13 +48,13 @@ def get_run_count():
     return 0
 
 def save_run_count(count):
-    with open(COUNTER_FILE, "w", encoding="utf-8") as f:
-        f.write(str(count))
+    open(COUNTER_FILE, "w").write(str(count))
 
 def check_and_clear_files_by_run_count():
     os.makedirs(IP_DIR, exist_ok=True)
     count = get_run_count() + 1
     if count >= 73:
+        print(f"🧹 第 {count} 次运行，清空 {IP_DIR} 下所有 .txt 文件")
         for f in os.listdir(IP_DIR):
             if f.endswith(".txt"):
                 os.remove(os.path.join(IP_DIR, f))
@@ -63,7 +65,7 @@ def check_and_clear_files_by_run_count():
         return "a", count
 
 # ===============================
-# IP运营商判断
+# IP 运营商判断
 def get_isp(ip):
     if ip.startswith(("113.", "116.", "117.", "118.", "119.")):
         return "电信"
@@ -74,16 +76,17 @@ def get_isp(ip):
     return "未知"
 
 # ===============================
-# 第一阶段：抓取IP
+# 第一阶段：爬取 + 分类写入
 def first_stage():
     all_ips = set()
     for url, filename in FOFA_URLS.items():
+        print(f"📡 正在爬取 {filename} ...")
         try:
             r = requests.get(url, headers=HEADERS, timeout=15)
             urls_all = re.findall(r'<a href="http://(.*?)"', r.text)
             all_ips.update(u.strip() for u in urls_all)
         except Exception as e:
-            print(f"❌ 爬取失败 {filename}: {e}")
+            print(f"❌ 爬取失败：{e}")
         time.sleep(3)
 
     province_isp_dict = {}
@@ -107,22 +110,28 @@ def first_stage():
         with open(path, mode, encoding="utf-8") as f:
             for ip_port in sorted(ip_set):
                 f.write(ip_port + "\n")
+        print(f"{path} 已{'覆盖' if mode=='w' else '追加'}写入 {len(ip_set)} 个 IP")
+    print(f"✅ 第一阶段完成，当前轮次：{run_count}")
     return run_count
 
 # ===============================
-# 第二阶段：ffprobe检测CCTV1,生成 zubo.txt
-def check_stream_ffprobe(url, timeout=5):
+# 第二阶段：检测 CCTV1 可用性，多线程 ffprobe
+def ffprobe_check(url, timeout=5):
     try:
         result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "stream=index", "-i", url],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout+2
+            ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "default=noprint_wrappers=1", url],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout
         )
-        return b"index" in result.stdout
-    except:
+        return b"width=" in result.stdout
+    except Exception:
         return False
 
 def second_stage():
-    combined = []
+    print("🔔 第二阶段触发：生成 zubo.txt（ffprobe检测）")
+    combined_lines = []
+
     for ip_file in os.listdir(IP_DIR):
         if not ip_file.endswith(".txt"):
             continue
@@ -130,46 +139,40 @@ def second_stage():
         rtp_path = os.path.join(RTP_DIR, ip_file)
         if not os.path.exists(rtp_path):
             continue
+
         province_operator = ip_file.replace(".txt", "")
         with open(ip_path, encoding="utf-8") as f1, open(rtp_path, encoding="utf-8") as f2:
-            ips = [x.strip() for x in f1 if x.strip()]
-            channels = [x.strip() for x in f2 if x.strip()]
-        if not ips or not channels:
+            ip_lines = [x.strip() for x in f1 if x.strip()]
+            rtp_lines = [x.strip() for x in f2 if x.strip()]
+
+        if not ip_lines or not rtp_lines:
             continue
 
-        # 多线程检测CCTV1
-        def test_ip(ip_port):
-            cctv1_urls = []
-            for ch_line in channels:
-                if "," not in ch_line:
-                    continue
-                ch_name, rtp_url = ch_line.split(",", 1)
-                if "CCTV1" in ch_name:
-                    full_url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
-                    cctv1_urls.append(full_url)
-            if not cctv1_urls:
-                return None
-            playable = any(check_stream_ffprobe(u) for u in cctv1_urls)
-            if playable:
-                # CCTV1可播，保留全部频道
-                ip_entries = []
-                for ch_line in channels:
-                    if "," not in ch_line:
-                        continue
-                    ch_name, rtp_url = ch_line.split(",", 1)
-                    ip_entries.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}")
-                return ip_entries
+        first_rtp_line = rtp_lines[0]
+        channel_name, rtp_url = first_rtp_line.split(",", 1)
+
+        def check_ip(ip_port):
+            url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
+            if ffprobe_check(url):
+                return ip_port
             return None
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as exe:
-            results = exe.map(test_ip, ips)
-            for r in results:
-                if r:
-                    combined.extend(r)
+            valid_ips = [ip for ip in exe.map(check_ip, ip_lines) if ip]
+
+        if not valid_ips:
+            print(f"🚫 {province_operator} 无可用 IP，跳过")
+            continue
+
+        for ip_port in valid_ips:
+            for rtp_line in rtp_lines:
+                ch_name, rtp_url = rtp_line.split(",", 1)
+                full_url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
+                combined_lines.append(f"{ch_name},{full_url}")
 
     # 去重
     unique = {}
-    for line in combined:
+    for line in combined_lines:
         url_part = line.split(",", 1)[1]
         if url_part not in unique:
             unique[url_part] = line
@@ -177,94 +180,66 @@ def second_stage():
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:
         for line in unique.values():
             f.write(line + "\n")
+    print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL，已保存 zubo.txt")
 
     # 推送 zubo.txt
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
-    os.system(f"git add {ZUBO_FILE}")
-    os.system(f'git commit -m "自动更新 {ZUBO_FILE}" || echo "无改动"')
+    os.system("git add zubo.txt")
+    os.system('git commit -m "自动更新 zubo.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main")
+    print("🚀 zubo.txt 已推送到仓库")
 
 # ===============================
-# 第三阶段：从 zubo.txt 分类排序生成 IPTV.txt，代表频道测速多线程
+# 第三阶段：分类排序生成 IPTV.txt
 def third_stage():
+    print("🧩 第三阶段：分类排序生成 IPTV.txt")
     if not os.path.exists(ZUBO_FILE):
+        print("⚠️ 未找到 zubo.txt，跳过")
         return
+
     with open(ZUBO_FILE, encoding="utf-8") as f:
         lines = [x.strip() for x in f if x.strip()]
-    # 按 IP 分组
-    ip_groups = {}
+
+    # 映射标准频道名
+    mapped_lines = []
+    reverse_map = {}
+    for std, aliases in CHANNEL_MAPPING.items():
+        for alias in aliases:
+            reverse_map[alias] = std
+
     for line in lines:
-        if "," not in line:
-            continue
-        ch, url = line.split(",", 1)
-        ip_match = re.search(r"http://(.*?)/", url)
-        if ip_match:
-            ip = ip_match.group(1)
-            ip_groups.setdefault(ip, []).append((ch, url))
+        ch_name, url = line.split(",", 1)
+        std_name = reverse_map.get(ch_name, ch_name)
+        mapped_lines.append((std_name, url))
 
-    # 代表频道测速（湖南卫视）
-    def test_latency(url):
-        start = time.time()
-        try:
-            r = requests.get(url, timeout=5, stream=True)
-            if r.status_code == 200:
-                return time.time() - start
-        except:
-            return None
-        return None
-
-    def test_ip_group(ip, entries):
-        rep_url = None
-        for ch, url in entries:
-            if "湖南卫视" in ch:
-                rep_url = url
+    # 分类
+    category_map = {cat: [] for cat in CHANNEL_CATEGORIES.keys()}
+    for ch_name, url in mapped_lines:
+        for cat, ch_list in CHANNEL_CATEGORIES.items():
+            if ch_name in ch_list:
+                category_map[cat].append(f"{ch_name},{url}")
                 break
-        if not rep_url:
-            return ip, float("inf"), entries
-        latency = test_latency(rep_url)
-        if latency is None:
-            latency = float("inf")
-        return ip, latency, entries
-
-    valid_groups = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as exe:
-        futures = [exe.submit(test_ip_group, ip, entries) for ip, entries in ip_groups.items()]
-        for future in concurrent.futures.as_completed(futures):
-            ip, latency, entries = future.result()
-            if latency != float("inf"):
-                valid_groups.append((latency, entries))
-
-    # 排序按延迟
-    valid_groups.sort(key=lambda x: x[0])
-
-    # 分类输出 IPTV.txt
-    category_map = {cat: [] for cat in CHANNEL_CATEGORIES}
-    for _, entries in valid_groups:
-        for ch, url in entries:
-            std_name = next((k for k, v in CHANNEL_MAPPING.items() if ch in v or ch == k), ch)
-            for cat, names in CHANNEL_CATEGORIES.items():
-                if std_name in names:
-                    category_map[cat].append(f"{std_name},{url}")
-                    break
 
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
-        for cat, lines in category_map.items():
+        for cat, entries in category_map.items():
             f.write(f"{cat},#genre#\n")
-            for line in sorted(set(lines)):
+            for line in sorted(set(entries)):
                 f.write(line + "\n")
             f.write("\n")
 
+    print(f"✅ 第三阶段完成，IPTV.txt 已生成，共 {sum(len(v) for v in category_map.values())} 条频道")
+
     # 推送 IPTV.txt
-    os.system(f"git add {IPTV_FILE}")
-    os.system(f'git commit -m "自动更新 {IPTV_FILE}" || echo "无改动"')
+    os.system("git add IPTV.txt")
+    os.system('git commit -m "自动更新 IPTV.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main")
+    print("🚀 IPTV.txt 已推送到仓库")
 
 # ===============================
-# 主执行逻辑
+# 主逻辑
 if __name__ == "__main__":
     run_count = first_stage()
-    # 第二阶段触发条件
     if run_count in [12, 24, 36, 48, 60, 72]:
         second_stage()
         third_stage()

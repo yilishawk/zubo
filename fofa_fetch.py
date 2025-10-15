@@ -197,6 +197,8 @@ def third_stage():
     # 映射标准频道名
     mapped_lines = []
     for line in lines:
+        if "," not in line:
+            continue
         ch_name, url = line.split(",", 1)
         ch_std = reverse_map.get(ch_name, ch_name)
         mapped_lines.append((ch_std, url))
@@ -224,24 +226,25 @@ def third_stage():
         if playable:
             valid_lines.extend([f"{c},{u}" for c, u in entries])
 
-    # 分类排序输出
+    # 分类排序输出，确保输出分类行
     ordered_lines = []
     for category, names in CHANNEL_CATEGORIES.items():
+        ordered_lines.append(f"{category},#genre#")
         for ch in names:
             ordered_lines.extend([line for line in valid_lines if line.startswith(ch + ",")])
+        ordered_lines.append("")  # 分类间空行
 
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
         for line in ordered_lines:
             f.write(line + "\n")
 
-    print(f"✅ 第三阶段完成，生成 IPTV.txt 共 {len(ordered_lines)} 条")
-
-    # 推送 IPTV.txt
+    print(f"✅ 第三阶段完成，生成 IPTV.txt 共 {len(valid_lines)} 条有效频道")
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
     os.system("git add IPTV.txt")
     os.system('git commit -m "自动更新 IPTV.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main")
+    print("🚀 IPTV.txt 已推送到仓库")
 
 # ===============================
 # 主执行逻辑

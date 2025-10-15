@@ -304,9 +304,9 @@ def second_stage():
     os.system("git push origin main")
     print("🚀 zubo.txt 已推送到仓库")
 # ===============================
-# 第三阶段：检测 CCTV1，有效则保留整组频道并推送 IPTV.txt
+# 第三阶段：湖南卫视延迟检测 + 分类生成 IPTV.txt
 def third_stage():
-    print("🧩 第三阶段开始：检测 CCTV1 并分类生成 IPTV.txt")
+    print("🧩 第三阶段开始：湖南卫视延迟检测并生成 IPTV.txt")
     if not os.path.exists(ZUBO_FILE):
         print("⚠️ 未找到 zubo.txt，跳过第三阶段")
         return
@@ -323,8 +323,6 @@ def third_stage():
     # 映射标准频道名
     mapped_lines = []
     for line in lines:
-        if "," not in line:
-            continue
         ch_name, url = line.split(",", 1)
         ch_std = reverse_map.get(ch_name, ch_name)
         mapped_lines.append((ch_std, url))
@@ -337,41 +335,72 @@ def third_stage():
             ip = ip_match.group(1)
             ip_groups.setdefault(ip, []).append((ch, url))
 
-    # 检测 CCTV1 是否可播放
-    def test_url(url):
+    # 延迟检测函数
+    def test_url_latency(url, timeout=5):
         try:
-            r = requests.get(url, timeout=5, stream=True)
-            return r.status_code == 200
+            start = time.time()
+            r = requests.get(url, timeout=timeout, stream=True)
+            if r.status_code == 200:
+                return time.time() - start
         except:
-            return False
+            return None
 
-    valid_lines = []
+    # 按湖南卫视可用性检测 IP 分组
+    print(f"共解析到 {len(ip_groups)} 个 IP 分组，开始湖南卫视延迟检测...")
+    valid_groups = []
     for ip, entries in ip_groups.items():
-        cctv1_urls = [u for c, u in entries if c == "CCTV1"]
-        playable = any(test_url(u) for u in cctv1_urls)
-        if playable:
-            valid_lines.extend([f"{c},{u}" for c, u in entries])
+        hunans = [(ch, url) for ch, url in entries if ch == "湖南卫视" or "湖南卫视" in ch]
+        if not hunans:
+            continue
+        latencies = []
+        for ch, url in hunans:
+            lat = test_url_latency(url)
+            if lat is not None:
+                latencies.append(lat)
+        if latencies:
+            best = min(latencies)
+            valid_groups.append((ip, best, entries))
+            print(f"分组可用: {ip} 延迟={best:.3f}s")
+        else:
+            print(f"分组不可用（湖南卫视均失败）: {ip}")
 
-    # 分类排序输出，确保输出分类行
-    ordered_lines = []
-    for category, names in CHANNEL_CATEGORIES.items():
-        ordered_lines.append(f"{category},#genre#")
-        for ch in names:
-            ordered_lines.extend([line for line in valid_lines if line.startswith(ch + ",")])
-        ordered_lines.append("")  # 分类间空行
+    if not valid_groups:
+        print("❌ 没有可用分组（基于湖南卫视检测），退出第三阶段")
+        return
 
+    # 按延迟排序，延迟低的优先
+    valid_groups.sort(key=lambda x: x[1])
+
+    # 生成 IPTV.txt 分类输出
+    mapped_channels = {}
+    for ip, _, entries in valid_groups:
+        counter = {}
+        for ch, url in entries:
+            num = counter.get(ch, 1)
+            counter[ch] = num + 1
+            url_with_tag = f"{url}${ip}{num}"  # 给每个 IP + 序号的唯一标识
+            lst = mapped_channels.setdefault(ch, [])
+            if url_with_tag not in lst:
+                lst.append(url_with_tag)
+
+    # 按分类输出
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
-        for line in ordered_lines:
-            f.write(line + "\n")
+        for category, names in CHANNEL_CATEGORIES.items():
+            f.write(f"{category},#genre#\n")
+            for ch in names:
+                for url in mapped_channels.get(ch, []):
+                    f.write(f"{ch},{url}\n")
+            f.write("\n")
 
-    print(f"✅ 第三阶段完成，生成 IPTV.txt 共 {len(valid_lines)} 条有效频道")
+    print(f"✅ 第三阶段完成，生成 IPTV.txt 共 {sum(len(mapped_channels.get(ch, [])) for ch in mapped_channels)} 条频道")
+
+    # 推送 zubo.txt 和 IPTV.txt
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
-    os.system("git add IPTV.txt")
-    os.system('git commit -m "自动更新 IPTV.txt" || echo "⚠️ 无需提交"')
+    os.system("git add zubo.txt IPTV.txt")
+    os.system('git commit -m "自动更新 zubo.txt & IPTV.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main")
-    print("🚀 IPTV.txt 已推送到仓库")
-
+    print("🚀 已推送 zubo.txt 和 IPTV.txt 到仓库")
 # ===============================
 # 主执行逻辑
 if __name__ == "__main__":

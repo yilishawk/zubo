@@ -22,7 +22,6 @@ RTP_DIR = "rtp"
 ZUBO_FILE = "zubo.txt"
 IPTV_FILE = "IPTV.txt"
 
-# ===============================
 # 频道分类与映射
 CHANNEL_CATEGORIES = {
     "央视频道": ["CCTV1", "CCTV2"],
@@ -33,7 +32,7 @@ CHANNEL_CATEGORIES = {
 CHANNEL_MAPPING = {
     "CCTV1": ["CCTV-1", "CCTV-1 HD", "CCTV1 HD", "CCTV-1综合", "CCTV1 4M1080", "CCTV1 5M1080HEVC"],
     "CCTV2": ["CCTV-2", "CCTV-2 HD", "CCTV2 HD", "CCTV-2财经", "CCTV2 720", "节目暂时不可用 1080"],
-    # 可以继续补充其他映射
+    # 可根据实际添加其他频道映射
 }
 
 # ===============================
@@ -52,6 +51,11 @@ def save_run_count(count):
         f.write(str(count))
 
 def check_and_clear_files_by_run_count():
+    """
+    每运行73次清空 IP_DIR 下所有 txt 文件。
+    前72次追加，第73次清空覆盖。
+    返回写入模式 w 或 a
+    """
     os.makedirs(IP_DIR, exist_ok=True)
     count = get_run_count() + 1
     if count >= 73:
@@ -76,19 +80,17 @@ def get_isp(ip):
     return "未知"
 
 # ===============================
-# 第一阶段：爬取 FOFA IP
+# 第一阶段：爬取 FOFA IP 并分类写入 ip/
 all_ips = set()
 for url, filename in FOFA_URLS.items():
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
-        page_content = resp.text
-        pattern = r'<a href="http://(.*?)" target="_blank">'
-        urls_all = re.findall(pattern, page_content)
+        urls_all = re.findall(r'<a href="http://(.*?)" target="_blank">', resp.text)
         for u in urls_all:
             all_ips.add(u.strip())
-    except:
-        pass
-    time.sleep(3)
+    except Exception as e:
+        print(f"爬取 {filename} 失败：{e}")
+    time.sleep(1)
 
 province_isp_dict = {}
 for ip_port in all_ips:
@@ -101,10 +103,8 @@ for ip_port in all_ips:
         if isp_name == "未知":
             continue
         fname = f"{province}{isp_name}.txt"
-        if fname not in province_isp_dict:
-            province_isp_dict[fname] = set()
-        province_isp_dict[fname].add(ip_port)
-        time.sleep(0.5)
+        province_isp_dict.setdefault(fname, set()).add(ip_port)
+        time.sleep(0.3)
     except:
         continue
 
@@ -116,7 +116,7 @@ for filename, ip_set in province_isp_dict.items():
             f.write(ip_port + "\n")
 
 # ===============================
-# 第二阶段：每 12、24、36...次触发
+# 第二阶段：每 12、24、36、48、60、72 次触发 zubo.txt
 if run_count in [12, 24, 36, 48, 60, 72]:
     combined_lines = []
 
@@ -133,22 +133,21 @@ if run_count in [12, 24, 36, 48, 60, 72]:
              open(rtp_path, "r", encoding="utf-8") as f_rtp:
             ip_lines = [line.strip() for line in f_ip if line.strip()]
             rtp_lines = [line.strip() for line in f_rtp if line.strip()]
-
         if not ip_lines or not rtp_lines:
             continue
 
-        first_rtp_line = rtp_lines[0]
-        channel_name, rtp_url = first_rtp_line.split(",", 1)
-
-        # 检测第一个频道
+        # 检测第一个 RTP
         def build_and_check(ip_port):
             try:
+                first_rtp_line = rtp_lines[0]
+                ch_name, rtp_url = first_rtp_line.split(",", 1)
                 url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
                 resp = requests.get(url, timeout=5, stream=True)
                 if resp.status_code == 200:
-                    return f"{channel_name},{url}${province_operator}{ip_lines.index(ip_port)+1}"
+                    return f"{ch_name},{url}${province_operator}{ip_lines.index(ip_port)+1}"
             except:
-                return None
+                pass
+            return None
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             results = list(executor.map(build_and_check, ip_lines))
@@ -156,7 +155,7 @@ if run_count in [12, 24, 36, 48, 60, 72]:
         valid_urls = [r for r in results if r]
         combined_lines.extend(valid_urls)
 
-        # 组合其他频道，不检测，直接生成
+        # 组合其他频道（不检测）
         for i, ip_port in enumerate(ip_lines, start=1):
             suffix = f"${province_operator}{i}"
             for other_rtp_line in rtp_lines[1:]:
@@ -179,44 +178,43 @@ if run_count in [12, 24, 36, 48, 60, 72]:
             f.write(line + "\n")
 
 # ===============================
-# 第三阶段：严格检测 zubo.txt 并生成 IPTV.txt
+# 第三阶段：检测 zubo.txt 并生成 IPTV.txt
 if os.path.exists(ZUBO_FILE):
     with open(ZUBO_FILE, "r", encoding="utf-8") as f:
         zubo_lines = [line.strip() for line in f if line.strip()]
 
+    # 按 IP 分组
     ip_to_lines = {}
     for line in zubo_lines:
         parts = line.split(",", 1)
         if len(parts) != 2:
             continue
         url_with_suffix = parts[1]
-        ip = re.match(r"http://([\d\.]+):\d+/", url_with_suffix)
-        if ip:
-            ip_str = ip.group(1)
+        m = re.match(r"http://([\d\.]+):\d+/", url_with_suffix)
+        if m:
+            ip_str = m.group(1)
             ip_to_lines.setdefault(ip_str, []).append(line)
 
-    # 严格检测CCTV1 URL
-    def check_cctv1(lines):
+    # 检测同 IP 下的 CCTV1，只要有一个 CCTV1 成功就保留全部
+    def check_ip(lines):
         cctv1_lines = [l for l in lines if l.startswith("CCTV1,")]
-        if not cctv1_lines:
-            return []
-        url_part = cctv1_lines[0].split(",", 1)[1].split("$")[0]
-        try:
-            resp = requests.get(url_part, timeout=5, stream=True)
-            if resp.status_code == 200:
-                return lines  # 同 IP 其他频道也保留
-        except:
-            pass
-        return []  # 检测不通过，全部丢弃
+        for line in cctv1_lines:
+            url_part = line.split(",", 1)[1].split("$")[0]
+            try:
+                resp = requests.get(url_part, timeout=5, stream=True)
+                if resp.status_code == 200:
+                    return lines
+            except:
+                continue
+        return []
 
-    # 多线程检测
     final_lines = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        results = list(executor.map(check_cctv1, ip_to_lines.values()))
+        results = list(executor.map(check_ip, ip_to_lines.values()))
     for res in results:
         final_lines.extend(res)
 
-    # 频道映射
+    # 映射频道别名到标准名
     mapped_lines = []
     for line in final_lines:
         ch, url_sfx = line.split(",", 1)
@@ -226,9 +224,10 @@ if os.path.exists(ZUBO_FILE):
                 break
         mapped_lines.append(f"{ch},{url_sfx}")
 
-    # 按分类排序
+    # 按分类排序，并在每类前加 #genre#
     sorted_lines = []
     for cat, ch_list in CHANNEL_CATEGORIES.items():
+        sorted_lines.append(f"{cat},#genre#")
         for ch in ch_list:
             for line in mapped_lines:
                 if line.startswith(ch + ","):

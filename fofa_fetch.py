@@ -109,7 +109,7 @@ def first_stage():
     return run_count
 
 # ===============================
-# 第二阶段：检测并生成 zubo.txt（严格模式）
+# 第二阶段：检测并生成 zubo.txt，并推送
 def second_stage():
     print("🔔 第二阶段触发：生成 zubo.txt（严格检测模式）")
     combined_lines = []
@@ -145,23 +145,29 @@ def second_stage():
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as exe:
             valid_ips = [ip for ip in exe.map(build_and_check, ip_lines) if ip]
 
-        for idx, ip_port in enumerate(valid_ips, start=1):
-            suffix = f"${province_operator}{idx if len(valid_ips)>1 else ''}"
+        for ip_port in valid_ips:
             for rtp_line in rtp_lines:
                 ch_name, rtp_url = rtp_line.split(",", 1)
-                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}{suffix}")
+                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}")
 
     # 去重
     unique = {}
     for line in combined_lines:
-        url_part = line.split(",", 1)[1].split("$")[0]
+        url_part = line.split(",", 1)[1]
         if url_part not in unique:
             unique[url_part] = line
 
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:
         for line in unique.values():
             f.write(line + "\n")
-    print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL（未推送）")
+    print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL")
+
+    # 推送 zubo.txt
+    os.system('git config --global user.name "github-actions"')
+    os.system('git config --global user.email "github-actions@users.noreply.github.com"')
+    os.system("git add zubo.txt")
+    os.system('git commit -m "自动更新 zubo.txt" || echo "⚠️ 无需提交"')
+    os.system("git push origin main")
 
 # ===============================
 # 第三阶段：检测 CCTV1，有效则保留整组频道并推送 IPTV.txt
@@ -206,7 +212,7 @@ def third_stage():
     valid_lines = []
     for ip, entries in ip_groups.items():
         cctv1_urls = [u for c, u in entries if c == "CCTV1"]
-        playable = any(test_url(u.split("$")[0]) for u in cctv1_urls)
+        playable = any(test_url(u) for u in cctv1_urls)
         if playable:
             valid_lines.extend([f"{c},{u}" for c, u in entries])
 
@@ -221,6 +227,8 @@ def third_stage():
             f.write(line + "\n")
 
     print(f"✅ 第三阶段完成，生成 IPTV.txt 共 {len(ordered_lines)} 条")
+
+    # 推送 IPTV.txt
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
     os.system("git add IPTV.txt")

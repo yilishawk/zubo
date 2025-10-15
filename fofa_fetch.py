@@ -109,7 +109,7 @@ def first_stage():
     return run_count
 
 # ===============================
-# 第二阶段：检测并生成 zubo.txt，并推送
+# 第二阶段：检测并生成 zubo.txt（严格模式）
 def second_stage():
     print("🔔 第二阶段触发：生成 zubo.txt（严格检测模式）")
     combined_lines = []
@@ -124,12 +124,14 @@ def second_stage():
         province_operator = ip_file.replace(".txt", "")
         with open(ip_path, encoding="utf-8") as f1, open(rtp_path, encoding="utf-8") as f2:
             ip_lines = [x.strip() for x in f1 if x.strip()]
-            rtp_lines = [x.strip() for x in f2 if x.strip()]
+            rtp_lines = [x.strip() for x in f2 if x.strip() and "," in x]  # 过滤格式不对的行
 
         if not ip_lines or not rtp_lines:
             continue
 
         first_rtp_line = rtp_lines[0]
+        if "," not in first_rtp_line:
+            continue
         channel_name, rtp_url = first_rtp_line.split(",", 1)
 
         def build_and_check(ip_port):
@@ -145,8 +147,14 @@ def second_stage():
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as exe:
             valid_ips = [ip for ip in exe.map(build_and_check, ip_lines) if ip]
 
+        if not valid_ips:
+            print(f"🚫 {province_operator} 没有可用 IP，跳过")
+            continue
+
         for ip_port in valid_ips:
             for rtp_line in rtp_lines:
+                if "," not in rtp_line:
+                    continue
                 ch_name, rtp_url = rtp_line.split(",", 1)
                 combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}")
 
@@ -162,13 +170,13 @@ def second_stage():
             f.write(line + "\n")
     print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL")
 
-    # 推送 zubo.txt
+    # 推送到仓库
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
     os.system("git add zubo.txt")
     os.system('git commit -m "自动更新 zubo.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main")
-
+    print("🚀 zubo.txt 已推送到仓库")
 # ===============================
 # 第三阶段：检测 CCTV1，有效则保留整组频道并推送 IPTV.txt
 def third_stage():

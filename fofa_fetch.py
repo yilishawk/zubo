@@ -201,7 +201,12 @@ if os.path.exists(ZUBO_FILE):
                 return std_name
         return ch_name
 
-    mapped_lines = [(map_channel(ch), url) for ch,url_suffix in final_lines for ch,url in [url_suffix.split("$")[0:2]]]
+    # 正确映射频道名
+    mapped_lines = []
+    for ch_name, url in final_lines:
+        mapped_name = map_channel(ch_name)
+        mapped_lines.append((mapped_name, url))
+
 
     # 分类
     category_lines = []

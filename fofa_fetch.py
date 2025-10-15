@@ -2,8 +2,8 @@ import os
 import re
 import requests
 import time
+import concurrent.futures
 import subprocess
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ===============================
 # 配置
@@ -20,7 +20,7 @@ HEADERS = {
 COUNTER_FILE = "计数.txt"
 IP_DIR = "ip"
 RTP_DIR = "rtp"
-OUTPUT_FILE = "IPTV.txt"
+IPTV_FILE = "IPTV.txt"
 
 # ===============================
 # 计数管理
@@ -62,7 +62,7 @@ def get_isp(ip):
     return "未知"
 
 # ===============================
-# 频道映射与分类
+# 渠道分类与映射
 CHANNEL_CATEGORIES = {
     "央视频道": ["CCTV1", "CCTV2"],
     "卫视频道": ["湖南卫视", "浙江卫视"],
@@ -87,27 +87,32 @@ def map_channel(name):
     return name.strip()
 
 # ===============================
-# 使用 ffprobe 检测可播放性
-def check_stream_playable(url, timeout=5):
+# ffprobe检测
+def check_playable(url, timeout=5):
+    """只要有分辨率就认为可播放"""
     try:
         result = subprocess.run(
-            ["ffprobe", "-v", "error", "-timeout", str(timeout*1000000), "-i", url],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout+2
+            ["ffprobe", "-v", "error", "-show_streams", "-select_streams", "v:0", "-i", url],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout
         )
-        return b"Stream #" in result.stderr
+        return b"width=" in result.stdout and b"height=" in result.stdout
     except Exception:
         return False
 
 # ===============================
-# 第一阶段：爬取 FOFA IP
+# 第一阶段：抓 FOFA IP 并写入 ip/
 all_ips = set()
 for url, filename in FOFA_URLS.items():
     try:
         resp = requests.get(url, headers=HEADERS, timeout=15)
         pattern = r'<a href="http://(.*?)" target="_blank">'
-        all_ips.update([u.strip() for u in re.findall(pattern, resp.text)])
-    except Exception:
-        pass
+        urls_all = re.findall(pattern, resp.text)
+        for u in urls_all:
+            all_ips.add(u.strip())
+    except:
+        continue
 
 province_isp_dict = {}
 for ip_port in all_ips:
@@ -120,15 +125,16 @@ for ip_port in all_ips:
         if isp_name == "未知":
             continue
         fname = f"{province}{isp_name}.txt"
-        province_isp_dict.setdefault(fname, set()).add(ip_port)
-        time.sleep(0.5)
-    except Exception:
+        if fname not in province_isp_dict:
+            province_isp_dict[fname] = set()
+        province_isp_dict[fname].add(ip_port)
+    except:
         continue
 
 write_mode, run_count = check_and_clear_files_by_run_count()
 for filename, ip_set in province_isp_dict.items():
-    save_path = os.path.join(IP_DIR, filename)
-    with open(save_path, write_mode, encoding="utf-8") as f:
+    path = os.path.join(IP_DIR, filename)
+    with open(path, write_mode, encoding="utf-8") as f:
         for ip_port in sorted(ip_set):
             f.write(ip_port + "\n")
 
@@ -146,6 +152,7 @@ if run_count in trigger_points:
         rtp_path = os.path.join(RTP_DIR, ip_file)
         if not os.path.exists(rtp_path):
             continue
+
         province_operator = ip_file.replace(".txt", "")
         with open(ip_path, "r", encoding="utf-8") as f_ip, open(rtp_path, "r", encoding="utf-8") as f_rtp:
             ip_lines = [line.strip() for line in f_ip if line.strip()]
@@ -156,26 +163,35 @@ if run_count in trigger_points:
 
         def process_ip(ip_port):
             channels = []
-            for rtp_line in rtp_lines:
-                if "," in rtp_line:
-                    ch_name, rtp_url = rtp_line.split(",", 1)
+            for line in rtp_lines:
+                if "," in line:
+                    ch_name, rtp_url = line.split(",", 1)
                     channels.append((ch_name, rtp_url))
 
-            # CCTV1 检测
-            cctv1_urls = [f"http://{ip_port}/rtp/{u.split('rtp://')[1]}" for ch, u in channels if "CCTV1" in ch]
-            if not any(check_stream_playable(u) for u in cctv1_urls):
+            cctv1_urls = [f"http://{ip_port}/rtp/{url.split('rtp://')[1]}" for ch, url in channels if "CCTV1" in ch]
+            if not any(check_playable(u) for u in cctv1_urls):
                 return []
 
-            # CCTV1 可播，保留全部频道
-            return [(ch, f"http://{ip_port}/rtp/{u.split('rtp://')[1]}") for ch, u in channels]
+            ip_entries = []
+            for ch_name, rtp_url in channels:
+                full_url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
+                ip_entries.append((ch_name, full_url))
+            return ip_entries
 
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            results = executor.map(process_ip, ip_lines)
-            for res in results:
-                combined_lines.extend(res)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(process_ip, ip) for ip in ip_lines]
+            for future in concurrent.futures.as_completed(futures):
+                combined_lines.extend(future.result())
 
-    # 分类、排序
-    category_map = {cat: [] for cat in CHANNEL_CATEGORIES.keys()}
+    # 去重
+    unique_lines = {}
+    for ch_name, url in combined_lines:
+        if url not in unique_lines:
+            unique_lines[url] = (ch_name, url)
+    combined_lines = list(unique_lines.values())
+
+    # 分类写 IPTV.txt
+    category_map = {cat: [] for cat in CHANNEL_CATEGORIES}
     for ch_name, url in combined_lines:
         mapped = map_channel(ch_name)
         for cat, keywords in CHANNEL_CATEGORIES.items():
@@ -183,17 +199,16 @@ if run_count in trigger_points:
                 category_map[cat].append(f"{mapped},{url}")
                 break
 
-    # 写入 IPTV.txt
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    with open(IPTV_FILE, "w", encoding="utf-8") as f:
         for cat, lines in category_map.items():
             f.write(f"{cat},#genre#\n")
             for line in sorted(set(lines)):
-                f.write(f"{line}\n")
+                f.write(line + "\n")
             f.write("\n")
 
-    # 推送
+    # 推送仓库
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
     os.system('git config --global user.name "github-actions"')
     os.system("git add IPTV.txt")
-    os.system(f'git commit -m "自动更新 IPTV.txt（第 {run_count} 次）" || echo "⚠️ 无需提交"')
+    os.system(f'git commit -m "自动更新 IPTV.txt（第 {run_count} 次）" || echo "nothing to commit"')
     os.system("git push")

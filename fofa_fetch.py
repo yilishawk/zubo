@@ -35,14 +35,13 @@ CHANNEL_MAPPING = {
 # ===============================
 # IP 运营商判断
 def get_isp(ip):
-    if re.match(r"^(1[0-9]{2}|2[0-3]{2}|42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+    if ip.startswith(("113.", "116.", "117.", "118.", "119.")):
         return "电信"
-    elif re.match(r"^(42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+    elif ip.startswith(("36.", "39.", "42.", "43.", "58.")):
         return "联通"
-    elif re.match(r"^(223|36|37|38|39|100|101|102|103|104|105|106|107|108|109|134|135|136|137|138|139|150|151|152|157|158|159|170|178|182|183|184|187|188|189)\.", ip):
+    elif ip.startswith(("100.", "101.", "102.", "103.", "104.", "223.")):
         return "移动"
-    else:
-        return "未知"
+    return "未知"
 
 # ===============================
 # 第一阶段：抓取 IP
@@ -104,9 +103,9 @@ def second_stage(new_ips):
     return unique.values()
 
 # ===============================
-# 第三阶段：多线程检测 + 生成 IPTV.txt + 更新 ip 文件
+# 第三阶段：多线程检测 + 生成 IPTV.txt + 更新 ip 文件（覆盖旧文件）
 def third_stage(zubo_lines):
-    print("🧩 第三阶段：多线程检测生成 IPTV.txt")
+    print("🧩 第三阶段：多线程检测生成 IPTV.txt并更新 ip/*.txt")
 
     # ffprobe 检测函数
     def check_stream(url, timeout=5):
@@ -126,18 +125,6 @@ def third_stage(zubo_lines):
     for main_name, aliases in CHANNEL_MAPPING.items():
         for alias in aliases:
             alias_map[alias] = main_name
-
-    # IP → 省份运营商
-    ip_info = {}
-    for fname in os.listdir(IP_DIR):
-        if not fname.endswith(".txt"):
-            continue
-        province_operator = fname.replace(".txt", "")
-        path = os.path.join(IP_DIR, fname)
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                ip_port = line.strip()
-                ip_info[ip_port] = province_operator
 
     # 按 IP 分组
     groups = {}
@@ -170,8 +157,12 @@ def third_stage(zubo_lines):
     # 生成最终去重 IPTV 列表 & 更新 ip/*.txt
     valid_lines = []
     ip_save_dict = {}
+
     for ip_port in playable_ips:
-        province_operator = ip_info.get(ip_port, "未知")
+        # 取省份运营商
+        ip_only = ip_port.split(":")[0]
+        isp = get_isp(ip_only)
+        province_operator = f"{isp}" if isp != "未知" else "未知"
         ip_save_dict.setdefault(province_operator, set()).add(ip_port)
         for c, u in groups[ip_port]:
             key = f"{c},{u}"
@@ -188,8 +179,14 @@ def third_stage(zubo_lines):
                         f.write(line + "\n")
             f.write("\n")
 
+    # 清空并重建 ip 文件夹
+    if os.path.exists(IP_DIR):
+        for f in os.listdir(IP_DIR):
+            os.remove(os.path.join(IP_DIR, f))
+    else:
+        os.makedirs(IP_DIR)
+
     # 写可用 IP 到 ip/*.txt
-    os.makedirs(IP_DIR, exist_ok=True)
     for province_operator, ips in ip_save_dict.items():
         path = os.path.join(IP_DIR, f"{province_operator}.txt")
         with open(path, "w", encoding="utf-8") as f:

@@ -287,14 +287,13 @@ def second_stage():
 # ===============================
 # 第三阶段：检测代表频道并生成 IPTV.txt（使用 ffprobe + 映射匹配 + 分类排序 + 多线程 + 后缀编号）
 def third_stage():
-    print("🧩 第三阶段：检测代表频道生成 IPTV.txt")
-    import os, re, subprocess, concurrent.futures
+    print("🧩 第三阶段：多线程检测代表频道生成 IPTV.txt")
 
     if not os.path.exists(ZUBO_FILE):
         print("⚠️ zubo.txt 不存在，跳过")
         return
 
-    # ffprobe 检测函数
+    # ---- ffprobe 检测函数 ----
     def check_stream(url, timeout=5):
         try:
             result = subprocess.run(
@@ -304,16 +303,16 @@ def third_stage():
                 timeout=timeout + 2
             )
             return b"codec_type" in result.stdout
-        except:
+        except Exception:
             return False
 
-    # 建立别名映射反查表
+    # ---- 建立别名反查表 ----
     alias_map = {}
     for main_name, aliases in CHANNEL_MAPPING.items():
         for alias in aliases:
             alias_map[alias] = main_name
 
-    # 读取 ip/省份运营商.txt，生成 ip_port -> 省份运营商 映射
+    # ---- 读取 IP → 省份运营商 ----
     ip_info = {}
     for fname in os.listdir(IP_DIR):
         if not fname.endswith(".txt"):
@@ -325,7 +324,7 @@ def third_stage():
                 ip_port = line.strip()
                 ip_info[ip_port] = province_operator
 
-    # 按 IP:端口分组 zubo.txt
+    # ---- 从 zubo.txt 分组 ----
     groups = {}
     with open(ZUBO_FILE, encoding="utf-8") as f:
         for line in f:
@@ -338,40 +337,39 @@ def third_stage():
                 ip_port = m.group(1)
                 groups.setdefault(ip_port, []).append((ch_main, url))
 
-    # 多线程检测代表频道
-    print(f"🚀 开始多线程检测 {len(groups)} 个 IP 代表频道（CCTV1）...")
-    valid_ips = []
-
-    def test_ip(ip_port, entries):
+    # ---- 多线程检测每个 IP 是否可播放 ----
+    def detect_ip(ip_port, entries):
+        # 优先检测 CCTV1，没有则检测任意一个频道
         rep_channels = [u for c, u in entries if c == "CCTV1"]
-        if not rep_channels:
-            return None
-        if any(check_stream(u) for u in rep_channels):
-            return ip_port
-        return None
+        if not rep_channels and entries:
+            rep_channels = [entries[0][1]]
+        playable = any(check_stream(u) for u in rep_channels)
+        return ip_port, playable
 
+    print(f"🚀 启动多线程检测（共 {len(groups)} 个 IP）...")
+    playable_ips = set()
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_ip = {executor.submit(test_ip, ip, entries): ip for ip, entries in groups.items()}
-        for future in concurrent.futures.as_completed(future_to_ip):
-            result = future.result()
-            if result:
-                valid_ips.append(result)
+        futures = {executor.submit(detect_ip, ip, chs): ip for ip, chs in groups.items()}
+        for future in concurrent.futures.as_completed(futures):
+            ip_port, ok = future.result()
+            if ok:
+                playable_ips.add(ip_port)
 
-    print(f"✅ 可用 IP 数：{len(valid_ips)}")
+    print(f"✅ 检测完成，可播放 IP 共 {len(playable_ips)} 个")
 
-    # 构建最终有效行（带后缀）
+    # ---- 生成最终去重 IPTV 列表 ----
     valid_lines = []
-    suffix_counter = {}  # key=(省份运营商,频道名)
-    for ip_port in valid_ips:
-        province_operator = ip_info.get(ip_port, "未知")
-        entries = groups[ip_port]
-        for c, u in entries:
-            key = (province_operator, c)
-            suffix_counter[key] = suffix_counter.get(key, 0) + 1
-            line = f"{c},{u}${province_operator}{suffix_counter[key]}"
-            valid_lines.append(line)
+    seen = set()
 
-    # 分类 + 排序输出
+    for ip_port in playable_ips:
+        province_operator = ip_info.get(ip_port, "未知")
+        for c, u in groups[ip_port]:
+            key = f"{c},{u}"
+            if key not in seen:
+                seen.add(key)
+                valid_lines.append(f"{c},{u}${province_operator}")
+
+    # ---- 分类写出 IPTV.txt ----
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
         for category, ch_list in CHANNEL_CATEGORIES.items():
             f.write(f"{category},#genre#\n")
@@ -382,7 +380,7 @@ def third_stage():
                         f.write(line + "\n")
             f.write("\n")
 
-    print(f"✅ IPTV.txt 分类+映射+多线程检测+后缀编号完成，共 {len(valid_lines)} 条有效频道")
+    print(f"🎯 IPTV.txt 生成完成（分类+去重+多线程检测），共 {len(valid_lines)} 条频道")
 # ===============================
 # 文件推送
 def push_all_files():

@@ -124,19 +124,6 @@ def first_stage():
             for line in f:
                 province_isp_dict.setdefault(fname, set()).add(line.strip())
 
-    # ---- ffprobe 检测函数 ----
-    def check_stream(url, timeout=5):
-        try:
-            result = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_streams", "-i", url],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout + 2
-            )
-            return b"codec_type" in result.stdout
-        except:
-            return False
-
     # ---- 多线程检测 ----
     for fname, ips in province_isp_dict.items():
         rtp_path = os.path.join(RTP_DIR, fname)
@@ -256,25 +243,12 @@ def third_stage(zubo_lines):
     print(f"🎯 IPTV.txt 生成完成，共 {sum(len(v) for v in groups.values())} 条频道")
 
 # ===============================
-# 推送到 GitHub
+# 推送到 GitHub（自动 stash 处理未提交）
 def push_all_files():
     print("🚀 推送更新到 GitHub...")
+
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
-    os.system("git add ip/*.txt IPTV.txt || true")
-    os.system('git commit -m "自动更新 IPTV.txt 与可用 IP" || echo "⚠️ 无需提交"')
-    os.system("git push origin main || echo '⚠️ 推送失败'")
 
-# ===============================
-if __name__ == "__main__":
-    run_count = get_run_count() + 1
-    save_run_count(run_count)
-
-    first_stage()
-
-    # 每 12 轮触发第二、三阶段
-    if run_count % 12 == 0:
-        zubo_lines = second_stage()
-        third_stage(zubo_lines)
-
-    push_all_files()
+    # stash 当前未提交更改
+    os.system("git stash push -m 'auto-stash-before-update' || true")

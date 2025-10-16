@@ -44,7 +44,7 @@ def get_isp(ip):
     return "未知"
 
 # ===============================
-# 第一阶段：抓取 IP
+# 第一阶段：抓取 IP 并返回 ip_port -> 省份运营商 字典
 def first_stage():
     all_ips = set()
     for url, filename in FOFA_URLS.items():
@@ -56,11 +56,27 @@ def first_stage():
         except Exception as e:
             print(f"❌ 抓取失败：{e}")
         time.sleep(3)
-    return all_ips
+
+    ip_dict = {}
+    for ip_port in all_ips:
+        try:
+            ip = ip_port.split(":")[0]
+            res = requests.get(f"http://ip-api.com/json/{ip}?lang=zh-CN", timeout=10)
+            data = res.json()
+            province = data.get("regionName", "未知")
+            isp = get_isp(ip)
+            if isp == "未知":
+                continue
+            province_operator = f"{province}{isp}"
+            ip_dict[ip_port] = province_operator
+        except Exception:
+            ip_dict[ip_port] = "未知"
+    print(f"✅ 第一阶段完成，抓取到 {len(ip_dict)} 个 IP")
+    return ip_dict
 
 # ===============================
 # 第二阶段：生成 zubo.txt（合并历史 IP + 新 IP）
-def second_stage(new_ips):
+def second_stage(ip_dict):
     print("🔔 第二阶段：生成 zubo.txt")
     combined_lines = []
 
@@ -78,7 +94,7 @@ def second_stage(new_ips):
             rtp_lines = [x.strip() for x in f2 if x.strip()]
 
         # 合并新抓 IP
-        for ip_port in new_ips:
+        for ip_port in ip_dict:
             if ip_port not in ip_lines:
                 ip_lines.append(ip_port)
 
@@ -96,6 +112,7 @@ def second_stage(new_ips):
         if url_part not in unique:
             unique[url_part] = line
 
+    # 保存 zubo.txt（临时文件）
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:
         for line in unique.values():
             f.write(line + "\n")
@@ -103,9 +120,9 @@ def second_stage(new_ips):
     return unique.values()
 
 # ===============================
-# 第三阶段：多线程检测 + 生成 IPTV.txt + 更新 ip 文件（覆盖旧文件）
-def third_stage(zubo_lines):
-    print("🧩 第三阶段：多线程检测生成 IPTV.txt并更新 ip/*.txt")
+# 第三阶段：多线程检测 + 生成 IPTV.txt + 更新 ip 文件
+def third_stage(zubo_lines, ip_dict):
+    print("🧩 第三阶段：多线程检测生成 IPTV.txt")
 
     # ffprobe 检测函数
     def check_stream(url, timeout=5):
@@ -157,12 +174,8 @@ def third_stage(zubo_lines):
     # 生成最终去重 IPTV 列表 & 更新 ip/*.txt
     valid_lines = []
     ip_save_dict = {}
-
     for ip_port in playable_ips:
-        # 取省份运营商
-        ip_only = ip_port.split(":")[0]
-        isp = get_isp(ip_only)
-        province_operator = f"{isp}" if isp != "未知" else "未知"
+        province_operator = ip_dict.get(ip_port, "未知")
         ip_save_dict.setdefault(province_operator, set()).add(ip_port)
         for c, u in groups[ip_port]:
             key = f"{c},{u}"
@@ -179,14 +192,13 @@ def third_stage(zubo_lines):
                         f.write(line + "\n")
             f.write("\n")
 
-    # 清空并重建 ip 文件夹
-    if os.path.exists(IP_DIR):
-        for f in os.listdir(IP_DIR):
-            os.remove(os.path.join(IP_DIR, f))
-    else:
-        os.makedirs(IP_DIR)
+    # 清空旧 ip 文件，写可用 IP 到 ip/*.txt
+    os.makedirs(IP_DIR, exist_ok=True)
+    for f in os.listdir(IP_DIR):
+        path = os.path.join(IP_DIR, f)
+        if os.path.isfile(path):
+            os.remove(path)
 
-    # 写可用 IP 到 ip/*.txt
     for province_operator, ips in ip_save_dict.items():
         path = os.path.join(IP_DIR, f"{province_operator}.txt")
         with open(path, "w", encoding="utf-8") as f:
@@ -197,19 +209,19 @@ def third_stage(zubo_lines):
     print(f"✅ ip 文件更新完成，共 {len(ip_save_dict)} 个省份运营商")
 
 # ===============================
-# ===============================
 # 文件推送
 def push_all_files():
-    print("🚀 推送更新到 GitHub（覆盖旧文件）...")
+    print("🚀 推送更新到 GitHub...")
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
-    os.system("git add -A")
+    os.system("git add ip/*.txt IPTV.txt || true")
     os.system('git commit -m "自动更新 IPTV.txt 与可用 IP" || echo "⚠️ 无需提交"')
-    os.system("git push origin main --force || echo '⚠️ 推送失败'")
+    os.system("git push origin main || echo '⚠️ 推送失败'")
+
 # ===============================
 # 主执行逻辑
 if __name__ == "__main__":
-    new_ips = first_stage()
-    zubo_lines = second_stage(new_ips)
-    third_stage(zubo_lines)
+    ip_dict = first_stage()
+    zubo_lines = second_stage(ip_dict)
+    third_stage(zubo_lines, ip_dict)
     push_all_files()

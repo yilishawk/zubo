@@ -153,11 +153,21 @@ def first_stage():
         province_isp_dict[fname] = valid_ips
 
     # 写回 ip/*.txt
-    for fname, ips in province_isp_dict.items():
-        path = os.path.join(IP_DIR, fname)
+    # ---- 写回 ip/*.txt ----
+    # 先清空 ip 文件夹
+    for fname in os.listdir(IP_DIR):
+        fpath = os.path.join(IP_DIR, fname)
+        if os.path.isfile(fpath):
+            os.remove(fpath)
+
+    # 然后再写入每个省份运营商的可用 IP
+    for po, ips in ip_dict.items():
+        path = os.path.join(IP_DIR, f"{po}.txt")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
-            for ip_port in sorted(ips):
-                f.write(ip_port + "\n")
+            for ip in sorted(ips):
+                f.write(ip + "\n")
+
 
     print("✅ 第一阶段完成，ip/*.txt 更新完毕")
     return province_isp_dict

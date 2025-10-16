@@ -290,10 +290,6 @@ def third_stage():
         print("⚠️ zubo.txt 不存在，跳过")
         return
 
-    import os
-    import re
-    import subprocess
-
     # ffprobe 检测函数
     def check_stream(url, timeout=5):
         try:

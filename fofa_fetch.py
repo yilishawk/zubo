@@ -36,13 +36,16 @@ CHANNEL_MAPPING = {
 # ===============================
 # 省份/运营商识别
 def get_isp(ip):
-    if re.match(r"^(1[0-9]{2}|2[0-3]{2}|42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
-        return "电信"
-    elif re.match(r"^(42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
-        return "联通"
-    elif re.match(r"^(223|36|37|38|39|100|101|102|103|104|105|106|107|108|109|134|135|136|137|138|139|150|151|152|157|158|159|170|178|182|183|184|187|188|189)\.", ip):
-        return "移动"
-    else:
+    try:
+        if re.match(r"^(1[0-9]{2}|2[0-3]{2}|42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+            return "电信"
+        elif re.match(r"^(42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+            return "联通"
+        elif re.match(r"^(223|36|37|38|39|100|101|102|103|104|105|106|107|108|109|134|135|136|137|138|139|150|151|152|157|158|159|170|178|182|183|184|187|188|189)\.", ip):
+            return "移动"
+        else:
+            return "未知"
+    except:
         return "未知"
 
 def get_province(ip):
@@ -66,12 +69,14 @@ def save_run_count(count):
     open(COUNTER_FILE, "w").write(str(count))
 
 # ===============================
-# 第一阶段：抓新 IP + 多线程检测 + 更新 ip/*.txt
+# 第一阶段：抓新 IP + 检测省份运营商 + 多线程检测 + 更新 ip/*.txt
 def first_stage():
-    print("📡 第一阶段：抓取新 IP + 多线程检测 + 更新 ip/*.txt")
+    print("📡 第一阶段：抓取新 IP + 检测省份运营商 + 多线程检测 + 更新 ip/*.txt")
 
     os.makedirs(IP_DIR, exist_ok=True)
     new_ips = set()
+
+    # ---- 抓取新 IP ----
     for url, filename in FOFA_URLS.items():
         try:
             r = requests.get(url, headers=HEADERS, timeout=15)
@@ -80,25 +85,33 @@ def first_stage():
         except Exception as e:
             print(f"❌ 抓取失败 {filename}: {e}")
         time.sleep(1)
-
     print(f"✅ 抓取到 {len(new_ips)} 个新 IP")
 
-    # ---- IP 按省份运营商分类 ----
+    # ---- 获取省份 + 运营商 ----
+    def get_province_isp(ip):
+        province = get_province(ip)
+        isp = get_isp(ip)
+        return f"{province}{isp}"
+
     ip_dict = {}
+
     for ip_port in new_ips:
         ip = ip_port.split(":")[0]
-        po = f"{get_province(ip)}{get_isp(ip)}"
+        po = get_province_isp(ip)
+        if "未知" in po or not po.strip():
+            print(f"⚠️ {ip} 省份或运营商未知，跳过")
+            continue
         ip_dict.setdefault(po, set()).add(ip_port)
 
     # ---- 读取旧 IP 并合并 ----
     for fname in os.listdir(IP_DIR):
         if not fname.endswith(".txt"):
             continue
-        province_operator = fname.replace(".txt", "")
+        po = fname.replace(".txt", "")
         path = os.path.join(IP_DIR, fname)
         with open(path, encoding="utf-8") as f:
             for line in f:
-                ip_dict.setdefault(province_operator, set()).add(line.strip())
+                ip_dict.setdefault(po, set()).add(line.strip())
 
     # ---- ffprobe 检测函数 ----
     def check_stream(url, timeout=5):
@@ -115,6 +128,9 @@ def first_stage():
 
     # ---- 多线程检测 ----
     for po, ips in ip_dict.items():
+        if not ips:
+            continue
+
         rtp_path = os.path.join(RTP_DIR, f"{po}.txt")
         if not os.path.exists(rtp_path):
             print(f"⚠️ {po} 没有 RTP 文件，跳过")
@@ -124,17 +140,22 @@ def first_stage():
         with open(rtp_path, encoding="utf-8") as f:
             rtp_lines = [x.strip() for x in f if x.strip()]
 
-        cctv_lines = [line.split(",",1)[1] for line in rtp_lines if "CCTV1" in line]
+        # 优先找 CCTV1
+        cctv_lines = [line.split(",", 1)[1] for line in rtp_lines if "CCTV1" in line]
         if not cctv_lines and rtp_lines:
-            cctv_lines = [rtp_lines[0].split(",",1)[1]]
+            cctv_lines = [rtp_lines[0].split(",", 1)[1]]
 
         valid_ips = set()
+
         def detect(ip_port):
             for rtp_url in cctv_lines:
-                url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
-                if check_stream(url):
-                    valid_ips.add(ip_port)
-                    break
+                try:
+                    url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
+                    if check_stream(url):
+                        valid_ips.add(ip_port)
+                        break
+                except Exception:
+                    continue
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             executor.map(detect, ips)
@@ -200,7 +221,6 @@ def third_stage(zubo_lines):
         for alias in aliases:
             alias_map[alias] = main_name
 
-    # 按 IP 分组，提取省份运营商
     groups = {}
     for line in zubo_lines:
         if "," not in line:
@@ -209,7 +229,6 @@ def third_stage(zubo_lines):
         po = url.split("$")[-1] if "$" in url else "未知"
         groups.setdefault(po, []).append(f"{ch_name},{url}${po}")
 
-    # 写 IPTV.txt
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
         for category, ch_list in CHANNEL_CATEGORIES.items():
             f.write(f"{category},#genre#\n")

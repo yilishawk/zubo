@@ -335,16 +335,16 @@ def third_stage():
                 groups.setdefault(ip_port, []).append((ch_main, url))
 
     valid_lines = []
+    counter = {}  # key = ip_port
     for ip_port, entries in groups.items():
         rep_channels = [u for c, u in entries if c == "CCTV1"]
         if not rep_channels:
             continue
         playable = any(check_stream(u) for u in rep_channels)
         if playable:
-            counter = {}
             for c, u in entries:
-                cnt = counter.get(c, 0) + 1
-                counter[c] = cnt
+                cnt = counter.get(ip_port, 0) + 1
+                counter[ip_port] = cnt
                 province_operator = ip_info.get(ip_port, "未知")
                 line = f"{c},{u}${province_operator}{cnt}"
                 valid_lines.append(line)

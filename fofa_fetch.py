@@ -283,7 +283,8 @@ def second_stage():
 
 # ===============================
 # ===============================
-# 第三阶段：检测代表频道并生成 IPTV.txt（严格分类排序 + URL去重）
+# ===============================
+# 第三阶段：检测代表频道并生成 IPTV.txt（使用 ffprobe + 映射匹配 + 分类排序）
 def third_stage():
     print("🧩 第三阶段：检测代表频道生成 IPTV.txt")
     if not os.path.exists(ZUBO_FILE):
@@ -302,6 +303,12 @@ def third_stage():
         except:
             return False
 
+    # 建立别名映射反查表
+    alias_map = {}
+    for main_name, aliases in CHANNEL_MAPPING.items():
+        for alias in aliases:
+            alias_map[alias] = main_name
+
     # 按 IP 分组
     groups = {}
     with open(ZUBO_FILE, encoding="utf-8") as f:
@@ -309,12 +316,16 @@ def third_stage():
             if "," not in line:
                 continue
             ch_name, url = line.strip().split(",", 1)
+
+            # 频道别名归一化
+            ch_main = alias_map.get(ch_name, ch_name)
+
             m = re.match(r"http://(.*?)/", url)
             if m:
                 ip = m.group(1)
-                groups.setdefault(ip, []).append((ch_name, url))
+                groups.setdefault(ip, []).append((ch_main, url))
 
-    # 检测代表频道（CCTV1）
+    # 检测代表频道 CCTV1
     valid_lines = []
     for ip, entries in groups.items():
         rep_channels = [u for c, u in entries if c == "CCTV1"]
@@ -322,20 +333,23 @@ def third_stage():
             continue
         playable = any(check_stream(u) for u in rep_channels)
         if playable:
-            valid_lines.extend(entries)
+            for c, u in entries:
+                line = f"{c},{u}"
+                if line not in valid_lines:
+                    valid_lines.append(line)
 
-    # ==== 分类 + 严格排序 + URL 去重 ====
+    # 分类 + 排序输出
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
-        for cat, channel_order in CHANNEL_CATEGORIES.items():
-            f.write(f"{cat},#genre#\n")
-            for ch in channel_order:
-                seen_urls = set()
-                for c, url in valid_lines:
-                    if c == ch and url not in seen_urls:
-                        f.write(f"{c},{url}\n")
-                        seen_urls.add(url)
+        for category, ch_list in CHANNEL_CATEGORIES.items():
+            f.write(f"{category},#genre#\n")
+            for ch in ch_list:
+                for line in valid_lines:
+                    name = line.split(",", 1)[0]
+                    if name == ch:
+                        f.write(line + "\n")
             f.write("\n")
-    print(f"✅ IPTV.txt 生成完成（严格分类排序 + URL去重），共 {len(valid_lines)} 条")
+
+    print(f"✅ IPTV.txt 分类+映射修正完成，共 {len(valid_lines)} 条有效频道")
 
 # ===============================
 # 文件推送

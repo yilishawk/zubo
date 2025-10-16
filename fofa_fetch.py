@@ -83,7 +83,7 @@ def check_stream(url, timeout=5):
         return False
 
 # ===============================
-# 第一阶段：抓新 IP + 检测 + 更新 ip/*.txt
+# 第一阶段：抓新 IP + 多线程检测 + 更新 ip/*.txt
 def first_stage():
     print("📡 第一阶段：抓取新 IP + 多线程检测 + 更新 ip/*.txt")
     os.makedirs(IP_DIR, exist_ok=True)
@@ -95,13 +95,13 @@ def first_stage():
             r = requests.get(url, headers=HEADERS, timeout=15)
             ips = re.findall(r'<a href="http://(.*?)"', r.text)
             new_ips.update(ips)
-        except:
-            continue
+        except Exception as e:
+            print(f"❌ 抓取失败 {filename}: {e}")
         time.sleep(1)
 
     print(f"✅ 抓取到 {len(new_ips)} 个新 IP")
 
-    # 按省份+运营商分类
+    # ---- 按省份+运营商分类 ----
     province_isp_dict = {}
     for ip_port in new_ips:
         try:
@@ -115,7 +115,7 @@ def first_stage():
         except:
             continue
 
-    # 读取旧 IP 并合并
+    # ---- 读取旧 IP 并合并 ----
     for fname in os.listdir(IP_DIR):
         if not fname.endswith(".txt"):
             continue
@@ -124,7 +124,20 @@ def first_stage():
             for line in f:
                 province_isp_dict.setdefault(fname, set()).add(line.strip())
 
-    # 多线程检测
+    # ---- ffprobe 检测函数 ----
+    def check_stream(url, timeout=5):
+        try:
+            result = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_streams", "-i", url],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout + 2
+            )
+            return b"codec_type" in result.stdout
+        except:
+            return False
+
+    # ---- 多线程检测 ----
     for fname, ips in province_isp_dict.items():
         rtp_path = os.path.join(RTP_DIR, fname)
         if not os.path.exists(rtp_path):
@@ -135,6 +148,7 @@ def first_stage():
         with open(rtp_path, encoding="utf-8") as f:
             rtp_lines = [line.strip() for line in f if line.strip()]
 
+        # 找 CCTV1，如果没有就任选一个
         cctv_lines = [line.split(",",1)[1] for line in rtp_lines if CHECK_CHANNEL in line]
         if not cctv_lines and rtp_lines:
             cctv_lines = [rtp_lines[0].split(",",1)[1]]
@@ -152,22 +166,20 @@ def first_stage():
 
         province_isp_dict[fname] = valid_ips
 
-    # 写回 ip/*.txt
+    # ---- 清空 ip/ 文件夹 ----
+    for f in os.listdir(IP_DIR):
+        file_path = os.path.join(IP_DIR, f)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+
     # ---- 写回 ip/*.txt ----
-    # 先清空 ip 文件夹
-    for fname in os.listdir(IP_DIR):
-        fpath = os.path.join(IP_DIR, fname)
-        if os.path.isfile(fpath):
-            os.remove(fpath)
-
-    # 然后再写入每个省份运营商的可用 IP
-    for po, ips in ip_dict.items():
-        path = os.path.join(IP_DIR, f"{po}.txt")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+    for fname, ips in province_isp_dict.items():
+        if not ips:
+            continue
+        path = os.path.join(IP_DIR, fname)
         with open(path, "w", encoding="utf-8") as f:
-            for ip in sorted(ips):
-                f.write(ip + "\n")
-
+            for ip_port in sorted(ips):
+                f.write(ip_port + "\n")
 
     print("✅ 第一阶段完成，ip/*.txt 更新完毕")
     return province_isp_dict

@@ -283,14 +283,14 @@ def second_stage():
 
 # ===============================
 # ===============================
-# 第三阶段：检测代表频道并生成 IPTV.txt（使用 ffprobe + 映射匹配 + 分类排序 + 后缀）
+# ===============================
+# 第三阶段
 def third_stage():
     print("🧩 第三阶段：检测代表频道生成 IPTV.txt")
     if not os.path.exists(ZUBO_FILE):
         print("⚠️ zubo.txt 不存在，跳过")
         return
 
-    # ffprobe 检测函数
     def check_stream(url, timeout=5):
         try:
             result = subprocess.run(
@@ -303,7 +303,6 @@ def third_stage():
         except:
             return False
 
-    # 建立别名映射反查表
     alias_map = {}
     for main_name, aliases in CHANNEL_MAPPING.items():
         for alias in aliases:
@@ -326,27 +325,25 @@ def third_stage():
             if "," not in line:
                 continue
             ch_name, url = line.strip().split(",", 1)
-
             ch_main = alias_map.get(ch_name, ch_name)
-
             m = re.match(r"http://(\d+\.\d+\.\d+\.\d+:\d+)/", url)
             if m:
                 ip_port = m.group(1)
                 groups.setdefault(ip_port, []).append((ch_main, url))
 
     valid_lines = []
-    counter = {}  # key = ip_port
+    suffix_counter = {}  # key=(省份运营商,频道名), value=编号
     for ip_port, entries in groups.items():
         rep_channels = [u for c, u in entries if c == "CCTV1"]
         if not rep_channels:
             continue
         playable = any(check_stream(u) for u in rep_channels)
         if playable:
+            province_operator = ip_info.get(ip_port, "未知")
             for c, u in entries:
-                cnt = counter.get(ip_port, 0) + 1
-                counter[ip_port] = cnt
-                province_operator = ip_info.get(ip_port, "未知")
-                line = f"{c},{u}${province_operator}{cnt}"
+                key = (province_operator, c)
+                suffix_counter[key] = suffix_counter.get(key, 0) + 1
+                line = f"{c},{u}${province_operator}{suffix_counter[key]}"
                 valid_lines.append(line)
 
     with open(IPTV_FILE, "w", encoding="utf-8") as f:

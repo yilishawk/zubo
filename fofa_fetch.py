@@ -283,14 +283,18 @@ def second_stage():
 
 # ===============================
 # ===============================
-# ===============================
-# 第三阶段
+# 第三阶段：检测代表频道并生成 IPTV.txt（使用 ffprobe + 映射匹配 + 分类排序 + 后缀）
 def third_stage():
-    print("🧩 第三阶段：检测代表频道生成 IPTV.txt（带后缀）")
+    print("🧩 第三阶段：检测代表频道生成 IPTV.txt")
     if not os.path.exists(ZUBO_FILE):
         print("⚠️ zubo.txt 不存在，跳过")
         return
 
+    import os
+    import re
+    import subprocess
+
+    # ffprobe 检测函数
     def check_stream(url, timeout=5):
         try:
             result = subprocess.run(
@@ -309,50 +313,46 @@ def third_stage():
         for alias in aliases:
             alias_map[alias] = main_name
 
-    # 读取 IP -> 省份运营商映射
     ip_info = {}
-    if os.path.exists(IP_DIR):
-        for fname in os.listdir(IP_DIR):
-            if not fname.endswith(".txt"):
-                continue
-            province_operator = fname.replace(".txt", "")
-            path = os.path.join(IP_DIR, fname)
-            with open(path, encoding="utf-8") as f:
-                for line in f:
-                    ip = line.strip().split(":")[0]
-                    ip_info[ip] = province_operator
+    for fname in os.listdir(IP_DIR):
+        if not fname.endswith(".txt"):
+            continue
+        province_operator = fname.replace(".txt", "")
+        path = os.path.join(IP_DIR, fname)
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                ip_port = line.strip()
+                ip_info[ip_port] = province_operator
 
-    # 按 IP 分组 zubo.txt
     groups = {}
     with open(ZUBO_FILE, encoding="utf-8") as f:
         for line in f:
             if "," not in line:
                 continue
             ch_name, url = line.strip().split(",", 1)
-            # 频道别名归一化
-            ch_main = alias_map.get(ch_name, ch_name)
-            m = re.match(r"http://(.*?)/", url)
-            if m:
-                ip = m.group(1)
-                groups.setdefault(ip, []).append((ch_main, url))
 
-    # 检测代表频道 CCTV1
+            ch_main = alias_map.get(ch_name, ch_name)
+
+            m = re.match(r"http://(\d+\.\d+\.\d+\.\d+:\d+)/", url)
+            if m:
+                ip_port = m.group(1)
+                groups.setdefault(ip_port, []).append((ch_main, url))
+
     valid_lines = []
-    for ip, entries in groups.items():
+    for ip_port, entries in groups.items():
         rep_channels = [u for c, u in entries if c == "CCTV1"]
         if not rep_channels:
             continue
         playable = any(check_stream(u) for u in rep_channels)
         if playable:
-            # 添加后缀
             counter = {}
             for c, u in entries:
-                count = counter.get(c, 0) + 1
-                counter[c] = count
-                suffix = ip_info.get(ip, "未知") + str(count)
-                valid_lines.append(f"{c},{u}${suffix}")
+                cnt = counter.get(c, 0) + 1
+                counter[c] = cnt
+                province_operator = ip_info.get(ip_port, "未知")
+                line = f"{c},{u}${province_operator}{cnt}"
+                valid_lines.append(line)
 
-    # 分类 + 排序输出
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
         for category, ch_list in CHANNEL_CATEGORIES.items():
             f.write(f"{category},#genre#\n")

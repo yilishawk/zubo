@@ -40,4 +40,7 @@ jobs:
           git add zubo.txt IPTV.txt 计数.txt ip/*.txt || true
 
           git commit -m "自动更新 FOFA 数据文件（zubo.txt, IPTV.txt, 计数.txt, ip/省份运营商.txt）" || echo "No changes to commit"
+
+          git pull --rebase origin main
+
           git push origin main

@@ -197,15 +197,15 @@ def third_stage(zubo_lines):
     print(f"✅ ip 文件更新完成，共 {len(ip_save_dict)} 个省份运营商")
 
 # ===============================
+# ===============================
 # 文件推送
 def push_all_files():
-    print("🚀 推送更新到 GitHub...")
+    print("🚀 推送更新到 GitHub（覆盖旧文件）...")
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
-    os.system("git add ip/*.txt IPTV.txt || true")
+    os.system("git add -A")
     os.system('git commit -m "自动更新 IPTV.txt 与可用 IP" || echo "⚠️ 无需提交"')
-    os.system("git push origin main || echo '⚠️ 推送失败'")
-
+    os.system("git push origin main --force || echo '⚠️ 推送失败'")
 # ===============================
 # 主执行逻辑
 if __name__ == "__main__":

@@ -75,10 +75,14 @@ def first_stage():
     return ip_dict
 
 # ===============================
+# ===============================
 # 第二阶段：生成 zubo.txt（合并历史 IP + 新 IP）
 def second_stage(ip_dict):
     print("🔔 第二阶段：生成 zubo.txt")
     combined_lines = []
+
+    # 确保 ip 文件夹存在
+    os.makedirs(IP_DIR, exist_ok=True)
 
     # 遍历 ip 文件夹
     for ip_file in os.listdir(IP_DIR):

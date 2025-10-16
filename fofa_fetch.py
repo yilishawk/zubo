@@ -284,14 +284,12 @@ def second_stage():
 # ===============================
 # ===============================
 # ===============================
-# 第三阶段：检测代表频道并生成 IPTV.txt（使用 ffprobe + 映射匹配 + 分类排序 + 省份运营商后缀）
+# 第三阶段
 def third_stage():
-    print("🧩 第三阶段：检测代表频道生成 IPTV.txt")
+    print("🧩 第三阶段：检测代表频道生成 IPTV.txt（带后缀）")
     if not os.path.exists(ZUBO_FILE):
         print("⚠️ zubo.txt 不存在，跳过")
         return
-
-    import subprocess, re, os, requests
 
     def check_stream(url, timeout=5):
         try:
@@ -311,69 +309,61 @@ def third_stage():
         for alias in aliases:
             alias_map[alias] = main_name
 
-    # IP 分组
+    # 读取 IP -> 省份运营商映射
+    ip_info = {}
+    if os.path.exists(IP_DIR):
+        for fname in os.listdir(IP_DIR):
+            if not fname.endswith(".txt"):
+                continue
+            province_operator = fname.replace(".txt", "")
+            path = os.path.join(IP_DIR, fname)
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    ip = line.strip().split(":")[0]
+                    ip_info[ip] = province_operator
+
+    # 按 IP 分组 zubo.txt
     groups = {}
     with open(ZUBO_FILE, encoding="utf-8") as f:
         for line in f:
             if "," not in line:
                 continue
             ch_name, url = line.strip().split(",", 1)
+            # 频道别名归一化
             ch_main = alias_map.get(ch_name, ch_name)
-
             m = re.match(r"http://(.*?)/", url)
-            if not m:
-                continue
-            ip = m.group(1)
-            groups.setdefault(ip, []).append((ch_main, url))
+            if m:
+                ip = m.group(1)
+                groups.setdefault(ip, []).append((ch_main, url))
 
     # 检测代表频道 CCTV1
-    valid_groups = {}
+    valid_lines = []
     for ip, entries in groups.items():
         rep_channels = [u for c, u in entries if c == "CCTV1"]
         if not rep_channels:
             continue
         playable = any(check_stream(u) for u in rep_channels)
         if playable:
-            valid_groups[ip] = entries
+            # 添加后缀
+            counter = {}
+            for c, u in entries:
+                count = counter.get(c, 0) + 1
+                counter[c] = count
+                suffix = ip_info.get(ip, "未知") + str(count)
+                valid_lines.append(f"{c},{u}${suffix}")
 
-    # ==== 获取每个 IP 的省份和运营商 ====
-    ip_info = {}
-    for ip in valid_groups.keys():
-        try:
-            res = requests.get(f"http://ip-api.com/json/{ip}?lang=zh-CN", timeout=6)
-            data = res.json()
-            province = data.get("regionName", "未知")
-            isp = get_isp(ip)
-            if isp == "未知":
-                isp = data.get("isp", "未知")
-            ip_info[ip] = f"{province}{isp}"
-        except:
-            ip_info[ip] = "未知地区"
-
-    # ==== 编号逻辑：同省份运营商编号自增 ====
-    isp_count = {}
-    final_lines = []
-    for ip, entries in valid_groups.items():
-        isp_key = ip_info.get(ip, "未知地区")
-        isp_count[isp_key] = isp_count.get(isp_key, 0) + 1
-        suffix = f"${isp_key}{isp_count[isp_key]}"
-        for ch_name, url in entries:
-            line = f"{ch_name},{url}{suffix}"
-            if line not in final_lines:
-                final_lines.append(line)
-
-    # ==== 分类 + 排序输出 ====
+    # 分类 + 排序输出
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
         for category, ch_list in CHANNEL_CATEGORIES.items():
             f.write(f"{category},#genre#\n")
             for ch in ch_list:
-                for line in final_lines:
+                for line in valid_lines:
                     name = line.split(",", 1)[0]
                     if name == ch:
                         f.write(line + "\n")
             f.write("\n")
 
-    print(f"✅ IPTV.txt 分类+映射修正完成，共 {len(final_lines)} 条（已加省份运营商后缀）")
+    print(f"✅ IPTV.txt 分类+映射+后缀完成，共 {len(valid_lines)} 条有效频道")
 # ===============================
 # 文件推送
 def push_all_files():

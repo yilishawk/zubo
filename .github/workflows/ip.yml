@@ -1,34 +1,41 @@
-name: fofa ip
+name: FOFA IP
 
 on:
   schedule:
-    # 每 20 分钟执行一次
-    - cron: '*/20 * * * *'
-  workflow_dispatch: # 支持手动触发
+    - cron: "*/20 * * * *"  # 每 20 分钟自动运行
+  workflow_dispatch:          # 手动触发
 
 jobs:
-  update_ip:
+  fetch-and-push:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: true
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.11
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
 
-    - name: Install system dependencies (ffmpeg)
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y ffmpeg
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
 
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install requests
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
-    - name: Run IPTV script
-      run: |
-        python fofa_fetch.py
+      - name: Run fofa_fetch.py
+        run: python fofa_fetch.py
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@users.noreply.github.com"
+          git add zubo.txt IPTV.txt 计数.txt ip/*.txt || true
+          git commit -m "自动更新 FOFA 数据文件（zubo.txt, IPTV.txt, 计数.txt, ip/省份运营商.txt）" || echo "No changes to commit"
+          git pull --rebase origin main
+          git push origin main

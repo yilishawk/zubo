@@ -83,7 +83,7 @@ def check_stream(url, timeout=5):
         return False
 
 # ===============================
-# 第一阶段：抓新 IP + 合并 + 多线程检测 + 更新 ip/*.txt
+# 第一阶段：抓新 IP + 合并 + 多线程检测 + 更新 ip/*.txt（优化版）
 def first_stage():
     print("📡 第一阶段：抓取新 IP + 多线程检测 + 更新 ip/*.txt")
     os.makedirs(IP_DIR, exist_ok=True)
@@ -129,13 +129,11 @@ def first_stage():
         rtp_path = os.path.join(RTP_DIR, fname)
         if not os.path.exists(rtp_path):
             print(f"⚠️ {fname} 没有 RTP 文件，跳过")
-            province_isp_dict[fname] = set()
             continue
 
         with open(rtp_path, encoding="utf-8") as f:
             rtp_lines = [line.strip() for line in f if line.strip()]
 
-        # 找 CCTV1，如果没有就任选一个
         cctv_lines = [line.split(",",1)[1] for line in rtp_lines if CHECK_CHANNEL in line]
         if not cctv_lines and rtp_lines:
             cctv_lines = [rtp_lines[0].split(",",1)[1]]
@@ -151,15 +149,12 @@ def first_stage():
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             executor.map(detect, ips)
 
-        # ---- 写回 ip/*.txt（覆盖模式，文件不存在则新建） ----
-        path = os.path.join(IP_DIR, fname)
+        # ---- 写回 ip/*.txt（仅有可用 IP 才写入） ----
         if valid_ips:
+            path = os.path.join(IP_DIR, fname)
             with open(path, "w", encoding="utf-8") as f:
                 for ip_port in sorted(valid_ips):
                     f.write(ip_port + "\n")
-        else:
-            if os.path.exists(path):
-                os.remove(path)
 
     print("✅ 第一阶段完成，ip/*.txt 更新完毕")
     return province_isp_dict

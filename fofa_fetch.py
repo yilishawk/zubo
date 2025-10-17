@@ -163,6 +163,10 @@ def first_stage():
     for fname, ips in province_isp_dict.items():
         if not ips:
             continue  # 只写入有有效 IP 的文件
+
+        # 确保 ip/ 文件夹存在
+        os.makedirs(IP_DIR, exist_ok=True)
+
         path = os.path.join(IP_DIR, fname)
         with open(path, "w", encoding="utf-8") as f:
             for ip_port in sorted(ips):

@@ -83,7 +83,7 @@ def check_stream(url, timeout=5):
         return False
 
 # ===============================
-# 第一阶段：抓新 IP + 多线程检测 + 更新 ip/*.txt
+# 第一阶段：抓新 IP + 检测 + 更新 ip/*.txt（只生成有有效 IP 的文件）
 def first_stage():
     print("📡 第一阶段：抓取新 IP + 多线程检测 + 更新 ip/*.txt")
     os.makedirs(IP_DIR, exist_ok=True)
@@ -136,9 +136,9 @@ def first_stage():
             rtp_lines = [line.strip() for line in f if line.strip()]
 
         # 找 CCTV1，如果没有就任选一个
-        cctv_lines = [line.split(",",1)[1] for line in rtp_lines if CHECK_CHANNEL in line]
+        cctv_lines = [line.split(",", 1)[1] for line in rtp_lines if CHECK_CHANNEL in line]
         if not cctv_lines and rtp_lines:
-            cctv_lines = [rtp_lines[0].split(",",1)[1]]
+            cctv_lines = [rtp_lines[0].split(",", 1)[1]]
 
         valid_ips = set()
         def detect(ip_port):
@@ -159,14 +159,15 @@ def first_stage():
         if os.path.isfile(file_path):
             os.remove(file_path)
 
-    # ---- 写回 ip/*.txt ----
+    # ---- 写回 ip/*.txt（只写有有效 IP 的文件） ----
     for fname, ips in province_isp_dict.items():
-        if not ips:
+        if not ips:  # 没有效 IP，不生成文件
             continue
         path = os.path.join(IP_DIR, fname)
         with open(path, "w", encoding="utf-8") as f:
             for ip_port in sorted(ips):
                 f.write(ip_port + "\n")
+        print(f"📝 写入文件: {path}, IP数量: {len(ips)}")
 
     print("✅ 第一阶段完成，ip/*.txt 更新完毕")
     return province_isp_dict
@@ -243,12 +244,25 @@ def third_stage(zubo_lines):
     print(f"🎯 IPTV.txt 生成完成，共 {sum(len(v) for v in groups.values())} 条频道")
 
 # ===============================
-# 推送到 GitHub（自动 stash 处理未提交）
+# 推送到 GitHub
 def push_all_files():
     print("🚀 推送更新到 GitHub...")
-
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
+    os.system("git add ip/*.txt IPTV.txt || true")
+    os.system('git commit -m "自动更新 IPTV.txt 与可用 IP" || echo "⚠️ 无需提交"')
+    os.system("git push origin main || echo '⚠️ 推送失败'")
 
-    # stash 当前未提交更改
-    os.system("git stash push -m 'auto-stash-before-update' || true")
+# ===============================
+if __name__ == "__main__":
+    run_count = get_run_count() + 1
+    save_run_count(run_count)
+
+    first_stage()
+
+    # 每 12 轮触发第二、三阶段
+    if run_count % 12 == 0:
+        zubo_lines = second_stage()
+        third_stage(zubo_lines)
+
+    push_all_files()

@@ -1,20 +1,12 @@
 import os
 import re
 import requests
+import time
 import concurrent.futures
 import subprocess
-import time
 
 # ===============================
 # 配置区
-IP_DIR = "ip"
-RTP_DIR = "rtp"
-ZUBO_FILE = "zubo.txt"
-IPTV_FILE = "IPTV.txt"
-COUNTER_FILE = "计数.txt"
-MAX_WORKERS = 20
-CHECK_CHANNEL = "CCTV1"
-
 FOFA_URLS = {
     "https://fofa.info/result?qbase64=InVkcHh5IiAmJiBjb3VudHJ5PSJDTiI%3D": "ip.txt",
 }
@@ -22,38 +14,23 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
 
-CHANNEL_CATEGORIES = {
-    "央视频道": ["CCTV1", "CCTV2"],
-    "卫视频道": ["湖南卫视", "浙江卫视"],
-    "数字频道": ["CHC动作电影", "CHC家庭影院", "CHC影迷电影"],
-}
-
-CHANNEL_MAPPING = {
-    "CCTV1": ["CCTV-1", "CCTV-1 HD", "CCTV1 HD", "CCTV-1综合", "CCTV1 4M1080", "CCTV1 5M1080HEVC"],
-    "CCTV2": ["CCTV-2", "CCTV-2 HD", "CCTV2 HD", "CCTV-2财经", "CCTV2 720", "节目暂时不可用 1080"],
-}
+COUNTER_FILE = "计数.txt"
+IP_DIR = "ip"
+RTP_DIR = "rtp"
+ZUBO_FILE = "zubo.txt"
+IPTV_FILE = "IPTV.txt"
 
 # ===============================
-# 运营商与省份识别
-def get_isp(ip):
-    try:
-        if re.match(r"^(1[0-9]{2}|2[0-3]{2}|42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
-            return "电信"
-        elif re.match(r"^(42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
-            return "联通"
-        elif re.match(r"^(223|36|37|38|39|100|101|102|103|104|105|106|107|108|109|134|135|136|137|138|139|150|151|152|157|158|159|170|178|182|183|184|187|188|189)\.", ip):
-            return "移动"
-        else:
-            return "未知"
-    except:
-        return "未知"
+# 分类与映射配置
+CHANNEL_CATEGORIES = {
+    此处省略
+    ]
+}
 
-def get_province(ip):
-    try:
-        res = requests.get(f"http://ip-api.com/json/{ip}?lang=zh-CN", timeout=10)
-        return res.json().get("regionName", "未知")
-    except:
-        return "未知"
+# ===== 映射（别名 -> 标准名） =====
+CHANNEL_MAPPING = {
+    此处省略
+}
 
 # ===============================
 # 计数逻辑
@@ -68,123 +45,81 @@ def get_run_count():
 def save_run_count(count):
     open(COUNTER_FILE, "w").write(str(count))
 
-# ===============================
-# 检测函数
-def check_stream(url, timeout=5):
-    try:
-        result = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_streams", "-i", url],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=timeout
-        )
-        return b"codec_type" in result.stdout
-    except:
-        return False
-
-# ===============================
-# 第一阶段：抓新 IP + 多线程检测 + 更新 ip/*.txt
-def first_stage():
-    print("📡 第一阶段：抓取新 IP + 多线程检测 + 更新 ip/*.txt")
+def check_and_clear_files_by_run_count():
     os.makedirs(IP_DIR, exist_ok=True)
-    new_ips = set()
+    count = get_run_count() + 1
+    if count >= 73:
+        print(f"🧹 第 {count} 次运行，清空 {IP_DIR} 下所有 .txt 文件")
+        for f in os.listdir(IP_DIR):
+            if f.endswith(".txt"):
+                os.remove(os.path.join(IP_DIR, f))
+        save_run_count(1)
+        return "w", 1
+    else:
+        save_run_count(count)
+        return "a", count
 
-    # 抓取新 IP
+# ===============================
+# IP 运营商判断
+def get_isp(ip):
+    if re.match(r"^(1[0-9]{2}|2[0-3]{2}|42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+        return "电信"
+    elif re.match(r"^(42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+        return "联通"
+    elif re.match(r"^(223|36|37|38|39|100|101|102|103|104|105|106|107|108|109|134|135|136|137|138|139|150|151|152|157|158|159|170|178|182|183|184|187|188|189)\.", ip):
+        return "移动"
+    else:
+        return "未知"
+
+# ===============================
+# 第一阶段：爬取 + 分类写入
+def first_stage():
+    all_ips = set()
     for url, filename in FOFA_URLS.items():
+        print(f"📡 正在爬取 {filename} ...")
         try:
             r = requests.get(url, headers=HEADERS, timeout=15)
-            ips = re.findall(r'<a href="http://(.*?)"', r.text)
-            new_ips.update(ips)
+            urls_all = re.findall(r'<a href="http://(.*?)"', r.text)
+            all_ips.update(u.strip() for u in urls_all)
         except Exception as e:
-            print(f"❌ 抓取失败 {filename}: {e}")
-        time.sleep(1)
+            print(f"❌ 爬取失败：{e}")
+        time.sleep(3)
 
-    print(f"✅ 抓取到 {len(new_ips)} 个新 IP")
-
-    # ---- 按省份+运营商分类 ----
     province_isp_dict = {}
-    for ip_port in new_ips:
+    for ip_port in all_ips:
         try:
             ip = ip_port.split(":")[0]
-            province = get_province(ip)
+            res = requests.get(f"http://ip-api.com/json/{ip}?lang=zh-CN", timeout=10)
+            data = res.json()
+            province = data.get("regionName", "未知")
             isp = get_isp(ip)
             if isp == "未知":
                 continue
             fname = f"{province}{isp}.txt"
             province_isp_dict.setdefault(fname, set()).add(ip_port)
-        except:
+        except Exception:
             continue
 
-    # ---- 读取旧 IP 并合并 ----
-    for fname in os.listdir(IP_DIR):
-        if not fname.endswith(".txt"):
-            continue
-        path = os.path.join(IP_DIR, fname)
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                province_isp_dict.setdefault(fname, set()).add(line.strip())
-
-    # ---- 多线程检测 ----
-    for fname, ips in province_isp_dict.items():
-        rtp_path = os.path.join(RTP_DIR, fname)
-        if not os.path.exists(rtp_path):
-            print(f"⚠️ {fname} 没有 RTP 文件，跳过")
-            province_isp_dict[fname] = set()
-            continue
-
-        with open(rtp_path, encoding="utf-8") as f:
-            rtp_lines = [line.strip() for line in f if line.strip()]
-
-        cctv_lines = [line.split(",",1)[1] for line in rtp_lines if CHECK_CHANNEL in line]
-        if not cctv_lines and rtp_lines:
-            cctv_lines = [rtp_lines[0].split(",",1)[1]]
-
-        # 给每条 URL 加上省份运营商标记
-        marked_urls = [f"{url}${fname}" for url in cctv_lines]
-
-        valid_ips = set()
-        def detect(ip_port):
-            for url in marked_urls:
-                full_url = f"http://{ip_port}/rtp/{url.split('rtp://')[1]}"
-                if check_stream(full_url):
-                    valid_ips.add(ip_port)
-                    break
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            executor.map(detect, ips)
-
-        province_isp_dict[fname] = valid_ips
-
-    # ---- 清空 ip/ 文件夹 ----
-    for f in os.listdir(IP_DIR):
-        file_path = os.path.join(IP_DIR, f)
-        if os.path.isfile(file_path):
-            os.remove(file_path)
-
-    # ---- 写回 ip/*.txt（只写有效 IP）----
-    for fname, ips in province_isp_dict.items():
-        if not ips:
-            continue
-        path = os.path.join(IP_DIR, fname)
-        with open(path, "w", encoding="utf-8") as f:
-            for ip_port in sorted(ips):
+    mode, run_count = check_and_clear_files_by_run_count()
+    for filename, ip_set in province_isp_dict.items():
+        path = os.path.join(IP_DIR, filename)
+        with open(path, mode, encoding="utf-8") as f:
+            for ip_port in sorted(ip_set):
                 f.write(ip_port + "\n")
-
-    print("✅ 第一阶段完成，ip/*.txt 更新完毕")
-    return province_isp_dict
+        print(f"{path} 已{'覆盖' if mode=='w' else '追加'}写入 {len(ip_set)} 个 IP")
+    print(f"✅ 第一阶段完成，当前轮次：{run_count}")
+    return run_count
 
 # ===============================
-# 第二阶段：生成 zubo.txt（每 12 轮触发）
+# 第二阶段：生成 zubo.txt
 def second_stage():
-    print("🔔 第二阶段：生成 zubo.txt")
+    print("🔔 第二阶段触发：生成 zubo.txt")
     combined_lines = []
-
-    for fname in os.listdir(IP_DIR):
-        if not fname.endswith(".txt"):
+    for ip_file in os.listdir(IP_DIR):
+        if not ip_file.endswith(".txt"):
             continue
-        po = fname.replace(".txt", "")
-        ip_path = os.path.join(IP_DIR, fname)
-        rtp_path = os.path.join(RTP_DIR, fname)
+        ip_path = os.path.join(IP_DIR, ip_file)
+        rtp_path = os.path.join(RTP_DIR, ip_file)
         if not os.path.exists(rtp_path):
             continue
 
@@ -192,79 +127,145 @@ def second_stage():
             ip_lines = [x.strip() for x in f1 if x.strip()]
             rtp_lines = [x.strip() for x in f2 if x.strip()]
 
+        if not ip_lines or not rtp_lines:
+            continue
+
         for ip_port in ip_lines:
             for rtp_line in rtp_lines:
                 if "," not in rtp_line:
                     continue
-                ch_name, rtp_url = rtp_line.split(",",1)
-                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}${po}")
+                ch_name, rtp_url = rtp_line.split(",", 1)
+                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}")
 
     # 去重
     unique = {}
     for line in combined_lines:
-        url_part = line.split(",",1)[1]
+        url_part = line.split(",", 1)[1]
         if url_part not in unique:
             unique[url_part] = line
 
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:
         for line in unique.values():
             f.write(line + "\n")
-
-    print(f"🎯 第二阶段完成，共 {len(unique)} 条 URL")
-    return unique.values()
+    print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL")
 
 # ===============================
-# 第三阶段：生成 IPTV.txt（每 12 轮触发）
-def third_stage(zubo_lines):
-    print("🧩 第三阶段：生成 IPTV.txt")
+# ===============================
+# ===============================
+# ===============================
+# 第三阶段：检测代表频道并生成 IPTV.txt（使用 ffprobe + 映射匹配 + 分类排序 + 多线程 + 后缀编号）
+def third_stage():
+    print("🧩 第三阶段：多线程检测代表频道生成 IPTV.txt")
+
+    if not os.path.exists(ZUBO_FILE):
+        print("⚠️ zubo.txt 不存在，跳过")
+        return
+
+    # ---- ffprobe 检测函数 ----
+    def check_stream(url, timeout=5):
+        try:
+            result = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_streams", "-i", url],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout + 2
+            )
+            return b"codec_type" in result.stdout
+        except Exception:
+            return False
+
+    # ---- 建立别名反查表 ----
     alias_map = {}
     for main_name, aliases in CHANNEL_MAPPING.items():
         for alias in aliases:
             alias_map[alias] = main_name
 
-    groups = {}
-    for line in zubo_lines:
-        if "," not in line:
+    # ---- 读取 IP → 省份运营商 ----
+    ip_info = {}
+    for fname in os.listdir(IP_DIR):
+        if not fname.endswith(".txt"):
             continue
-        ch_name, url = line.strip().split(",",1)
-        po = url.split("$")[-1] if "$" in url else "未知"
-        groups.setdefault(po, []).append(f"{ch_name},{url}${po}")
+        province_operator = fname.replace(".txt", "")
+        path = os.path.join(IP_DIR, fname)
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                ip_port = line.strip()
+                ip_info[ip_port] = province_operator
 
-    # 写 IPTV.txt
+    # ---- 从 zubo.txt 分组 ----
+    groups = {}
+    with open(ZUBO_FILE, encoding="utf-8") as f:
+        for line in f:
+            if "," not in line:
+                continue
+            ch_name, url = line.strip().split(",", 1)
+            ch_main = alias_map.get(ch_name, ch_name)
+            m = re.match(r"http://(\d+\.\d+\.\d+\.\d+:\d+)/", url)
+            if m:
+                ip_port = m.group(1)
+                groups.setdefault(ip_port, []).append((ch_main, url))
+
+    # ---- 多线程检测每个 IP 是否可播放 ----
+    def detect_ip(ip_port, entries):
+        # 优先检测 CCTV1，没有则检测任意一个频道
+        rep_channels = [u for c, u in entries if c == "CCTV1"]
+        if not rep_channels and entries:
+            rep_channels = [entries[0][1]]
+        playable = any(check_stream(u) for u in rep_channels)
+        return ip_port, playable
+
+    print(f"🚀 启动多线程检测（共 {len(groups)} 个 IP）...")
+    playable_ips = set()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(detect_ip, ip, chs): ip for ip, chs in groups.items()}
+        for future in concurrent.futures.as_completed(futures):
+            ip_port, ok = future.result()
+            if ok:
+                playable_ips.add(ip_port)
+
+    print(f"✅ 检测完成，可播放 IP 共 {len(playable_ips)} 个")
+
+    # ---- 生成最终去重 IPTV 列表 ----
+    valid_lines = []
+    seen = set()
+
+    for ip_port in playable_ips:
+        province_operator = ip_info.get(ip_port, "未知")
+        for c, u in groups[ip_port]:
+            key = f"{c},{u}"
+            if key not in seen:
+                seen.add(key)
+                valid_lines.append(f"{c},{u}${province_operator}")
+
+    # ---- 分类写出 IPTV.txt ----
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
         for category, ch_list in CHANNEL_CATEGORIES.items():
             f.write(f"{category},#genre#\n")
             for ch in ch_list:
-                for po, lines in groups.items():
-                    for line in lines:
-                        name = line.split(",",1)[0]
-                        if name == ch:
-                            f.write(line + "\n")
+                for line in valid_lines:
+                    name = line.split(",", 1)[0]
+                    if name == ch:
+                        f.write(line + "\n")
             f.write("\n")
 
-    print(f"🎯 IPTV.txt 生成完成，共 {sum(len(v) for v in groups.values())} 条频道")
-
+    print(f"🎯 IPTV.txt 生成完成（分类+去重+多线程检测），共 {len(valid_lines)} 条频道")
 # ===============================
-# 推送到 GitHub（Python 内完成）
+# 文件推送
 def push_all_files():
-    print("🚀 推送更新到 GitHub...")
+    print("🚀 推送所有更新文件到 GitHub...")
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
-    os.system("git add -A")
-    os.system('git commit -m "自动更新 IPTV.txt 与可用 IP" || echo "⚠️ 无需提交"')
-    os.system("git pull origin main --rebase || echo '⚠️ 拉取失败'")
+    os.system("git add 计数.txt")
+    os.system("git add ip/*.txt || true")
+    os.system("git add zubo.txt IPTV.txt || true")
+    os.system('git commit -m "自动更新：计数、IP文件、zubo.txt、IPTV.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main || echo '⚠️ 推送失败'")
 
 # ===============================
+# 主执行逻辑
 if __name__ == "__main__":
-    run_count = get_run_count() + 1
-    save_run_count(run_count)
-
-    first_stage()
-
-    # 每 12 轮触发第二、三阶段
-    if run_count % 12 == 0:
-        zubo_lines = second_stage()
-        third_stage(zubo_lines)
-
+    run_count = first_stage()
+    if run_count in [12, 24, 36, 48, 60, 72]:
+        second_stage()
+        third_stage()
     push_all_files()

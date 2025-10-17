@@ -282,9 +282,6 @@ def second_stage():
     print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL")
 
 # ===============================
-# ===============================
-# ===============================
-# ===============================
 # 第三阶段：检测代表频道并生成 IPTV.txt（使用 ffprobe + 映射匹配 + 分类排序 + 多线程 + 后缀编号）
 def third_stage():
     print("🧩 第三阶段：多线程检测代表频道生成 IPTV.txt")
@@ -339,7 +336,6 @@ def third_stage():
 
     # ---- 多线程检测每个 IP 是否可播放 ----
     def detect_ip(ip_port, entries):
-        # 优先检测 CCTV1，没有则检测任意一个频道
         rep_channels = [u for c, u in entries if c == "CCTV1"]
         if not rep_channels and entries:
             rep_channels = [entries[0][1]]
@@ -381,23 +377,59 @@ def third_stage():
             f.write("\n")
 
     print(f"🎯 IPTV.txt 生成完成（分类+去重+多线程检测），共 {len(valid_lines)} 条频道")
+
+
 # ===============================
-# 文件推送
+# 第四阶段：从仓库 IPTV.txt 提取 CCTV1 链接以生成新的 IP 文件
+def fourth_stage():
+    print("📡 第四阶段：从仓库 IPTV.txt 提取 CCTV1 链接")
+
+    if not os.path.exists(IPTV_FILE):
+        print("⚠️ 仓库中未找到 IPTV.txt，跳过第四阶段")
+        return
+
+    with open(IPTV_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    cctv1_links = []
+    for line in lines:
+        if line.startswith("CCTV1,") and "http" in line:
+            cctv1_links.append(line.strip())
+
+    if not cctv1_links:
+        print("⚠️ 未提取到 CCTV1 链接，跳过写入")
+        return
+
+    os.makedirs(IP_DIR, exist_ok=True)
+    output_path = os.path.join(IP_DIR, "CCTV1提取IP.txt")
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(cctv1_links))
+
+    print(f"✅ 成功提取 {len(cctv1_links)} 条 CCTV1 链接，已写入 {output_path}")
+
+
+# ===============================
+# 文件推送（⚠️ 已去掉 zubo.txt）
 def push_all_files():
     print("🚀 推送所有更新文件到 GitHub...")
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
     os.system("git add 计数.txt")
     os.system("git add ip/*.txt || true")
-    os.system("git add zubo.txt IPTV.txt || true")
-    os.system('git commit -m "自动更新：计数、IP文件、zubo.txt、IPTV.txt" || echo "⚠️ 无需提交"')
+    os.system("git add IPTV.txt || true")
+    os.system('git commit -m "自动更新：计数、IP文件、IPTV.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main || echo '⚠️ 推送失败'")
+
 
 # ===============================
 # 主执行逻辑
 if __name__ == "__main__":
     run_count = first_stage()
+
     if run_count in [12, 24, 36, 48, 60, 72]:
         second_stage()
         third_stage()
+    elif run_count == 73:
+        fourth_stage()  # ✅ 从仓库 IPTV.txt 提取 CCTV1 链接
+
     push_all_files()

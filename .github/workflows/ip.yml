@@ -1,8 +1,8 @@
-name: fofa IP
+name: fofa ip
 
 on:
   schedule:
-    - cron: '0 */2 * * *'  # 每 2 小时执行一次
+    - cron: '0 */2 * * *'  # 每两小时执行一次
   workflow_dispatch:       # 手动触发
 
 jobs:
@@ -31,9 +31,14 @@ jobs:
       run: |
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@users.noreply.github.com"
-        git reset --hard
-        git clean -fd
-        git pull origin main --rebase
-        git add ip/*.txt IPTV.txt || true
+
+        # 清理仓库中已经删除的文件
+        git add -A
+        git status
+
+        # 提交更改，如果没有改动则跳过
         git commit -m "自动更新 IPTV.txt 与可用 IP" || echo "⚠️ 无需提交"
+
+        # 安全推送
+        git pull origin main --rebase || echo "⚠️ 拉取失败"
         git push origin main || echo "⚠️ 推送失败"

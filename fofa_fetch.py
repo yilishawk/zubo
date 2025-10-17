@@ -83,7 +83,7 @@ def check_stream(url, timeout=5):
         return False
 
 # ===============================
-# 第一阶段：抓新 IP + 合并 + 多线程检测 + 更新 ip/*.txt（优化版）
+# 第一阶段：抓新 IP + 多线程检测 + 更新 ip/*.txt
 def first_stage():
     print("📡 第一阶段：抓取新 IP + 多线程检测 + 更新 ip/*.txt")
     os.makedirs(IP_DIR, exist_ok=True)
@@ -129,6 +129,7 @@ def first_stage():
         rtp_path = os.path.join(RTP_DIR, fname)
         if not os.path.exists(rtp_path):
             print(f"⚠️ {fname} 没有 RTP 文件，跳过")
+            province_isp_dict[fname] = set()
             continue
 
         with open(rtp_path, encoding="utf-8") as f:
@@ -138,23 +139,36 @@ def first_stage():
         if not cctv_lines and rtp_lines:
             cctv_lines = [rtp_lines[0].split(",",1)[1]]
 
+        # 给每条 URL 加上省份运营商标记
+        marked_urls = [f"{url}${fname}" for url in cctv_lines]
+
         valid_ips = set()
         def detect(ip_port):
-            for rtp_url in cctv_lines:
-                url = f"http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}"
-                if check_stream(url):
+            for url in marked_urls:
+                full_url = f"http://{ip_port}/rtp/{url.split('rtp://')[1]}"
+                if check_stream(full_url):
                     valid_ips.add(ip_port)
                     break
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             executor.map(detect, ips)
 
-        # ---- 写回 ip/*.txt（仅有可用 IP 才写入） ----
-        if valid_ips:
-            path = os.path.join(IP_DIR, fname)
-            with open(path, "w", encoding="utf-8") as f:
-                for ip_port in sorted(valid_ips):
-                    f.write(ip_port + "\n")
+        province_isp_dict[fname] = valid_ips
+
+    # ---- 清空 ip/ 文件夹 ----
+    for f in os.listdir(IP_DIR):
+        file_path = os.path.join(IP_DIR, f)
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+
+    # ---- 写回 ip/*.txt（只写有效 IP）----
+    for fname, ips in province_isp_dict.items():
+        if not ips:
+            continue
+        path = os.path.join(IP_DIR, fname)
+        with open(path, "w", encoding="utf-8") as f:
+            for ip_port in sorted(ips):
+                f.write(ip_port + "\n")
 
     print("✅ 第一阶段完成，ip/*.txt 更新完毕")
     return province_isp_dict
@@ -231,12 +245,12 @@ def third_stage(zubo_lines):
     print(f"🎯 IPTV.txt 生成完成，共 {sum(len(v) for v in groups.values())} 条频道")
 
 # ===============================
-# 推送到 GitHub
+# 推送到 GitHub（Python 内完成）
 def push_all_files():
     print("🚀 推送更新到 GitHub...")
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
-    os.system("git add -A || true")
+    os.system("git add -A")
     os.system('git commit -m "自动更新 IPTV.txt 与可用 IP" || echo "⚠️ 无需提交"')
     os.system("git pull origin main --rebase || echo '⚠️ 拉取失败'")
     os.system("git push origin main || echo '⚠️ 推送失败'")

@@ -26,12 +26,3 @@ jobs:
     - name: Run IPTV script
       run: |
         python fofa_fetch.py
-
-    - name: Commit and push changes
-      run: |
-        git config --global user.name "github-actions"
-        git config --global user.email "github-actions@users.noreply.github.com"
-        git add -A
-        git commit -m "自动更新 IPTV.txt 与可用 IP" || echo "⚠️ 无需提交"
-        git pull origin main --rebase || echo "⚠️ 拉取失败"
-        git push origin main || echo "⚠️ 推送失败"

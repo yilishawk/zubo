@@ -135,6 +135,7 @@ def first_stage():
         with open(rtp_path, encoding="utf-8") as f:
             rtp_lines = [line.strip() for line in f if line.strip()]
 
+        # 找 CCTV1，如果没有就任选一个
         cctv_lines = [line.split(",",1)[1] for line in rtp_lines if CHECK_CHANNEL in line]
         if not cctv_lines and rtp_lines:
             cctv_lines = [rtp_lines[0].split(",",1)[1]]
@@ -152,15 +153,16 @@ def first_stage():
 
         province_isp_dict[fname] = valid_ips
 
-    # ---- 清空 ip/ 文件夹再写回 ----
+    # ---- 清空 ip/ 文件夹 ----
     for f in os.listdir(IP_DIR):
         file_path = os.path.join(IP_DIR, f)
         if os.path.isfile(file_path):
             os.remove(file_path)
 
+    # ---- 写回 ip/*.txt ----
     for fname, ips in province_isp_dict.items():
         if not ips:
-            continue  # 没有效 IP 不生成空文件
+            continue  # 只写入有有效 IP 的文件
         path = os.path.join(IP_DIR, fname)
         with open(path, "w", encoding="utf-8") as f:
             for ip_port in sorted(ips):

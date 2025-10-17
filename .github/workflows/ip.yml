@@ -35,7 +35,8 @@ jobs:
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@users.noreply.github.com"
-          git add zubo.txt IPTV.txt 计数.txt ip/*.txt || true
-          git commit -m "自动更新 FOFA 数据文件（zubo.txt, IPTV.txt, 计数.txt, ip/省份运营商.txt）" || echo "No changes to commit"
-          git pull --rebase origin main
-          git push origin main
+          git add 计数.txt
+          git add ip/*.txt || true
+          git add IPTV.txt || true
+          git commit -m "自动更新：计数、IP文件、IPTV.txt" || echo "⚠️ 无需提交"
+          git push origin main || echo "⚠️ 推送失败"

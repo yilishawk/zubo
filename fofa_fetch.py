@@ -48,10 +48,12 @@ CHANNEL_CATEGORIES = {
     "湖北": [
         "湖北公共新闻", "湖北经视频道", "湖北综合频道", "湖北垄上频道", "湖北影视频道", "湖北生活频道", "湖北教育频道", "武汉新闻综合", "武汉电视剧", "武汉科技生活",
         "武汉文体频道", "武汉教育频道", "阳新综合", "房县综合", "蔡甸综合",
-    ],#任意添加，与仓库中rtp/省份运营商.txt内频道一致即可，或在下方频道名映射中改名
+    ],
+    "陕西电视": [
+        "陕西卫视", "陕西新闻资讯", "陕西都市青春", "陕西银龄", "陕西秦腔", "陕西体育休闲", "陕西西部电影", "西安新闻综合", "西安电视台"
+    ],
 }
 
-# ===== 映射（别名 -> 标准名） =====
 CHANNEL_MAPPING = {
     "CCTV1": ["CCTV-1", "CCTV-1 HD", "CCTV1 HD", "CCTV-1综合"],
     "CCTV2": ["CCTV-2", "CCTV-2 HD", "CCTV2 HD", "CCTV-2财经"],
@@ -149,7 +151,17 @@ CHANNEL_MAPPING = {
     "中国交通": ["中国交通频道"],
     "中国天气": ["中国天气频道"],
     "华数4K": ["华数低于4K", "华数4K电影", "华数爱上4K"],
-}#格式为"频道分类中的标准名": ["rtp/中的名字"],
+    # 陕西频道映射
+    "陕西卫视": ["陕西卫视HD", "陕西卫视4K", "陕西卫视 高清"],
+    "陕西新闻资讯": ["陕西新闻", "陕西新闻资讯HD", "陕西资讯"],
+    "陕西都市青春": ["陕西都市", "陕西青春", "陕西都市青春HD"],
+    "陕西银龄": ["陕西银龄频道", "陕西银龄HD"],
+    "陕西秦腔": ["陕西秦腔戏曲", "秦腔频道", "陕西秦腔HD"],
+    "陕西体育休闲": ["陕西体育", "陕西休闲", "陕西体育休闲HD"],
+    "陕西西部电影": ["陕西西部", "陕西电影", "陕西西部电影HD"],
+    "西安新闻综合": ["西安新闻", "西安综合", "西安新闻综合HD"],
+    "西安电视台": ["西安TV", "西安电视台HD", "西安综合电视台"],
+}
 
 # ===============================
 # 计数逻辑
@@ -277,17 +289,20 @@ def third_stage():
         print("⚠️ zubo.txt 不存在，跳过")
         return
 
-    def check_stream(url, timeout=5):
-        try:
-            result = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_streams", "-i", url],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=timeout + 2
-            )
-            return b"codec_type" in result.stdout
-        except Exception:
-            return False
+    def check_stream(url, timeout=10, retries=2):
+        for attempt in range(retries):
+            try:
+                result = subprocess.run(
+                    ["ffprobe", "-v", "error", "-show_streams", "-i", url],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=timeout
+                )
+                return b"codec_type" in result.stdout
+            except Exception as e:
+                print(f"尝试 {attempt+1}/{retries} 失败: {url}, 错误: {e}")
+                time.sleep(1)
+        return False
 
     alias_map = {}
     for main_name, aliases in CHANNEL_MAPPING.items():
@@ -322,6 +337,7 @@ def third_stage():
         if not rep_channels and entries:
             rep_channels = [entries[0][1]]
         playable = any(check_stream(u) for u in rep_channels)
+        print(f"IP {ip_port}: {'可播放' if playable else '不可播放'}，测试频道: {rep_channels}")
         return ip_port, playable
 
     print(f"🚀 启动多线程检测（共 {len(groups)} 个 IP）...")
@@ -369,7 +385,6 @@ def push_all_files():
     os.system("git add IPTV.txt || true")
     os.system('git commit -m "自动更新：计数、IP文件、IPTV.txt" || echo "⚠️ 无需提交"')
     os.system("git push origin main || echo '⚠️ 推送失败'")
-
 
 # ===============================
 # 主执行逻辑

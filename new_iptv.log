@@ -14,3 +14,7 @@
 2025-10-20 14:14:49,958 [ERROR] ❌ 爬取失败：'str' object has no attribute 'items'
 2025-10-20 14:14:52,234 [WARNING] ⚠️ 未找到 IP，可能是 FOFA 反爬或结果为空
 2025-10-20 14:14:52,234 [INFO] 🚀 推送所有更新文件到 GitHub...
+2025-10-20 18:22:26,554 [INFO] 📡 正在爬取 FOFA URL: https://fofa.info/result?qbase64=ImlwdHYvbGl2ZS96aF9jbi5qcyI=
+2025-10-20 18:22:26,555 [ERROR] ❌ 爬取失败：'str' object has no attribute 'items'
+2025-10-20 18:22:29,038 [WARNING] ⚠️ 未找到 IP，可能是 FOFA 反爬或结果为空
+2025-10-20 18:22:29,038 [INFO] 🚀 推送所有更新文件到 GitHub...

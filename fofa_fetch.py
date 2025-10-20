@@ -393,7 +393,7 @@ def push_all_files():
 # 主执行逻辑
 if __name__ == "__main__":
     run_count = first_stage()
-    if run_count in [12, 24, 36, 48, 60, 72]:
+    if run_count in [2, 4, 6]:
         second_stage()
         third_stage()
     push_all_files()

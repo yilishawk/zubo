@@ -24,9 +24,7 @@ logging.basicConfig(
 # 配置区
 FOFA_URL = "https://fofa.info/result?qbase64=ImlwdHYvbGl2ZS96aF9jbi5qcyI="
 HEADERS = [
-    {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
-    {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"},
-    {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15"}
+"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 ]
 COUNTER_FILE = "new_计数.txt"  # 新计数文件
 IP_DIR = "new_ip"  # 新 IP 目录

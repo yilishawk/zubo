@@ -22,7 +22,7 @@ logging.basicConfig(
 
 # ===============================
 # 配置区
-FOFA_URL = "https://fofa.info/result?qbase64=InVwdHYvbGl2ZS96aF9jbi5qcyI="
+FOFA_URL = "https://fofa.info/result?qbase64=ImlwdHYvbGl2ZS96aF9jbi5qcyI="
 HEADERS = [
     {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
     {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"},

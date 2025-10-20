@@ -1,0 +1,44 @@
+name: New IPTV Scraper
+
+on:
+  schedule:
+    - cron: '0 18 * * *'  # UTC 18:00 = 北京时间 02:00
+  workflow_dispatch:  # 支持手动触发
+
+jobs:
+  scrape-new-iptv:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 检出代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 设置 Python 环境
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      # 安装依赖
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      # 运行脚本
+      - name: Run New IPTV scraper
+        run: python new_iptv_scraper.py
+
+      # 提交和推送更改
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add new_计数.txt new_ip/*.txt New_IPTV.txt new_iptv.log || true
+          git commit -m "自动更新：新计数、新IP文件、New_IPTV.txt、日志" || echo "无更改可提交"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

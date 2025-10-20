@@ -4,14 +4,69 @@ import requests
 import time
 import concurrent.futures
 import subprocess
+import random
+import logging
+from typing import Dict, List, Set, Tuple
+
+# ===============================
+# 日志配置
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('iptv_scanner.log', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# ===============================
+# 安全配置
+SAFE_CONFIG = {
+    "max_workers": 8,           # 降低并发数
+    "request_delay": 8,         # 增加请求间隔
+    "timeout": 10,              # 增加超时时间
+    "max_retries": 2,           # 最大重试次数
+}
+
+# 用户代理池
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/121.0",
+]
+
+def get_safe_headers():
+    """获取安全的请求头"""
+    return {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+    }
+
+def safe_delay(min_delay: float = None, max_delay: float = None):
+    """安全的延迟，避免请求过快"""
+    if min_delay is None:
+        min_delay = SAFE_CONFIG["request_delay"]
+    if max_delay is None:
+        max_delay = min_delay + 3
+    
+    delay = random.uniform(min_delay, max_delay)
+    logger.info(f"⏳ 安全延迟: {delay:.2f}秒")
+    time.sleep(delay)
 
 # ===============================
 # 配置区
 FOFA_URLS = {
     "https://fofa.info/result?qbase64=InVkcHh5IiAmJiBjb3VudHJ5PSJDTiI%3D": "ip.txt",
-}
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
 
 COUNTER_FILE = "计数.txt"
@@ -180,7 +235,7 @@ def check_and_clear_files_by_run_count():
     os.makedirs(IP_DIR, exist_ok=True)
     count = get_run_count() + 1
     if count >= 73:
-        print(f"🧹 第 {count} 次运行，清空 {IP_DIR} 下所有 .txt 文件")
+        logger.info(f"🧹 第 {count} 次运行，清空 {IP_DIR} 下所有 .txt 文件")
         for f in os.listdir(IP_DIR):
             if f.endswith(".txt"):
                 os.remove(os.path.join(IP_DIR, f))
@@ -207,20 +262,27 @@ def get_isp(ip):
 def first_stage():
     all_ips = set()
     for url, filename in FOFA_URLS.items():
-        print(f"📡 正在爬取 {filename} ...")
+        logger.info(f"📡 正在爬取 {filename} ...")
         try:
-            r = requests.get(url, headers=HEADERS, timeout=15)
+            headers = get_safe_headers()
+            r = requests.get(url, headers=headers, timeout=SAFE_CONFIG["timeout"])
             urls_all = re.findall(r'<a href="http://(.*?)"', r.text)
             all_ips.update(u.strip() for u in urls_all)
+            logger.info(f"✅ 从 {filename} 获取到 {len(urls_all)} 个IP")
         except Exception as e:
-            print(f"❌ 爬取失败：{e}")
-        time.sleep(3)
+            logger.error(f"❌ 爬取失败：{e}")
+        
+        safe_delay()  # 使用安全延迟
 
     province_isp_dict = {}
+    total_ips = len(all_ips)
+    processed = 0
+    
     for ip_port in all_ips:
         try:
             ip = ip_port.split(":")[0]
-            res = requests.get(f"http://ip-api.com/json/{ip}?lang=zh-CN", timeout=10)
+            headers = get_safe_headers()
+            res = requests.get(f"http://ip-api.com/json/{ip}?lang=zh-CN", headers=headers, timeout=SAFE_CONFIG["timeout"])
             data = res.json()
             province = data.get("regionName", "未知")
             isp = get_isp(ip)
@@ -228,7 +290,14 @@ def first_stage():
                 continue
             fname = f"{province}{isp}.txt"
             province_isp_dict.setdefault(fname, set()).add(ip_port)
-        except Exception:
+            
+            processed += 1
+            if processed % 10 == 0:  # 每处理10个IP延迟一次
+                logger.info(f"🌍 IP地理位置查询进度: {processed}/{total_ips}")
+                safe_delay(3, 5)  # 较短的延迟
+                
+        except Exception as e:
+            logger.warning(f"⚠️ IP地理位置查询失败: {ip_port}, 错误: {e}")
             continue
 
     mode, run_count = check_and_clear_files_by_run_count()
@@ -237,22 +306,27 @@ def first_stage():
         with open(path, mode, encoding="utf-8") as f:
             for ip_port in sorted(ip_set):
                 f.write(ip_port + "\n")
-        print(f"{path} 已{'覆盖' if mode=='w' else '追加'}写入 {len(ip_set)} 个 IP")
-    print(f"✅ 第一阶段完成，当前轮次：{run_count}")
+        logger.info(f"{path} 已{'覆盖' if mode=='w' else '追加'}写入 {len(ip_set)} 个 IP")
+    logger.info(f"✅ 第一阶段完成，当前轮次：{run_count}")
     return run_count
 
 # ===============================
 # 第二阶段
 def second_stage():
-    print("🔔 第二阶段触发：生成 zubo.txt")
+    logger.info("🔔 第二阶段触发：生成 zubo.txt")
     combined_lines = []
-    for ip_file in os.listdir(IP_DIR):
-        if not ip_file.endswith(".txt"):
+    
+    ip_files = [f for f in os.listdir(IP_DIR) if f.endswith(".txt")]
+    rtp_files = [f for f in os.listdir(RTP_DIR) if f.endswith(".txt")] if os.path.exists(RTP_DIR) else []
+    
+    logger.info(f"📁 发现 {len(ip_files)} 个IP文件和 {len(rtp_files)} 个RTP文件")
+    
+    for ip_file in ip_files:
+        if ip_file not in rtp_files:
             continue
+            
         ip_path = os.path.join(IP_DIR, ip_file)
         rtp_path = os.path.join(RTP_DIR, ip_file)
-        if not os.path.exists(rtp_path):
-            continue
 
         with open(ip_path, encoding="utf-8") as f1, open(rtp_path, encoding="utf-8") as f2:
             ip_lines = [x.strip() for x in f1 if x.strip()]
@@ -261,12 +335,15 @@ def second_stage():
         if not ip_lines or not rtp_lines:
             continue
 
+        logger.info(f"🔗 组合 {ip_file}: {len(ip_lines)}个IP × {len(rtp_lines)}个频道")
+        
         for ip_port in ip_lines:
             for rtp_line in rtp_lines:
                 if "," not in rtp_line:
                     continue
                 ch_name, rtp_url = rtp_line.split(",", 1)
-                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}")
+                if "rtp://" in rtp_url:
+                    combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_url.split('rtp://')[1]}")
 
     # 去重
     unique = {}
@@ -278,106 +355,256 @@ def second_stage():
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:
         for line in unique.values():
             f.write(line + "\n")
-    print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL")
+    logger.info(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL")
 
 # ===============================
-# 第三阶段
-def third_stage():
-    print("🧩 第三阶段：多线程检测代表频道生成 IPTV.txt")
+# 第三阶段 - 超快速IP测速方案
+def fast_ip_test(ip_port: str, test_channel: str = "CCTV1") -> Tuple[bool, float, float]:
+    """
+    对每个IP只测试一个代表频道（默认CCTV1）
+    返回: (是否成功, 连接延迟, 速度评分)
+    """
+    # 构造测试URL - 这里需要根据实际情况调整
+    # 假设格式为 http://IP:PORT/rtp/频道地址
+    test_url = f"http://{ip_port}/rtp/239.76.245.115:1234"  # 示例CCTV1地址
+    
+    try:
+        start_time = time.time()
+        
+        # 使用ffprobe快速检测
+        result = subprocess.run([
+            "ffprobe", "-v", "quiet",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=codec_name",
+            "-of", "csv=p=0",
+            "-timeout", "3000000",  # 3秒超时(微秒)
+            test_url
+        ], capture_output=True, timeout=3, text=True)
+        
+        probe_time = time.time() - start_time
+        
+        if result.returncode == 0 and result.stdout.strip():
+            # 成功获取流信息
+            response_score = max(0, 10 - probe_time * 2)
+            return True, probe_time, response_score
+        else:
+            return False, probe_time, 0
+            
+    except subprocess.TimeoutExpired:
+        return False, 3, 0
+    except Exception as e:
+        logger.debug(f"IP测试异常: {ip_port}, 错误: {e}")
+        return False, 10, 0
 
-    if not os.path.exists(ZUBO_FILE):
-        print("⚠️ zubo.txt 不存在，跳过")
-        return
+def ip_speed_test_worker(ip_data: Tuple[str, str]) -> Tuple[str, str, bool, float, float]:
+    """IP测速工作线程"""
+    ip_port, provider = ip_data
+    success, latency, score = fast_ip_test(ip_port)
+    return ip_port, provider, success, latency, score
 
-    def check_stream(url, timeout=10, retries=2):
-        for attempt in range(retries):
-            try:
-                result = subprocess.run(
-                    ["ffprobe", "-v", "error", "-show_streams", "-i", url],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=timeout
-                )
-                return b"codec_type" in result.stdout
-            except Exception as e:
-                print(f"尝试 {attempt+1}/{retries} 失败: {url}, 错误: {e}")
-                time.sleep(1)
-        return False
-
-    alias_map = {}
-    for main_name, aliases in CHANNEL_MAPPING.items():
-        for alias in aliases:
-            alias_map[alias] = main_name
-
-    ip_info = {}
+def fast_ip_based_sorting(max_workers: int = None) -> Dict[str, List[Tuple]]:
+    """
+    基于IP测速的快速排序方案
+    每个IP只测试一个代表频道，然后为每个频道选择最快的前2个IP
+    """
+    if max_workers is None:
+        max_workers = SAFE_CONFIG["max_workers"]
+        
+    logger.info("🚀 开始基于IP的快速测速排序...")
+    
+    # 收集所有IP
+    all_ips = []
+    ip_to_provider = {}
+    
     for fname in os.listdir(IP_DIR):
         if not fname.endswith(".txt"):
             continue
         province_operator = fname.replace(".txt", "")
         path = os.path.join(IP_DIR, fname)
+        
         with open(path, encoding="utf-8") as f:
             for line in f:
                 ip_port = line.strip()
-                ip_info[ip_port] = province_operator
-
-    groups = {}
+                if ip_port and ":" in ip_port:
+                    all_ips.append((ip_port, province_operator))
+                    ip_to_provider[ip_port] = province_operator
+    
+    logger.info(f"📡 发现 {len(all_ips)} 个IP需要测速")
+    
+    if not all_ips:
+        logger.warning("⚠️ 没有找到可用的IP文件")
+        return {}
+    
+    # 对IP进行测速
+    ip_speed_results = {}
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_ip = {executor.submit(ip_speed_test_worker, ip_data): ip_data for ip_data in all_ips}
+        
+        completed = 0
+        for future in concurrent.futures.as_completed(future_to_ip):
+            ip_data = future_to_ip[future]
+            try:
+                ip_port, provider, success, latency, score = future.result(timeout=10)
+                completed += 1
+                
+                if success:
+                    ip_speed_results[ip_port] = (provider, score, latency)
+                    status = "✅"
+                else:
+                    status = "❌"
+                
+                logger.info(f"  [{completed}/{len(all_ips)}] {status} {ip_port} | "
+                      f"延迟: {latency:.2f}s | 评分: {score:.1f} | {provider}")
+                
+            except Exception as e:
+                completed += 1
+                logger.warning(f"  ⚠️ IP测速失败: {ip_data[0]}, 错误: {e}")
+    
+    # 获取可用的快速IP列表（按评分排序）
+    available_ips = [(ip, provider, score) for ip, (provider, score, latency) in ip_speed_results.items()]
+    available_ips.sort(key=lambda x: x[2], reverse=True)  # 按评分降序
+    
+    logger.info(f"📊 IP测速完成: {len(available_ips)}/{len(all_ips)} 个IP可用")
+    
+    # 构建频道到IP的映射
+    channel_to_ips = {}
+    
+    if not os.path.exists(ZUBO_FILE):
+        logger.error("❌ zubo.txt 文件不存在")
+        return {}
+        
     with open(ZUBO_FILE, encoding="utf-8") as f:
         for line in f:
             if "," not in line:
                 continue
             ch_name, url = line.strip().split(",", 1)
-            ch_main = alias_map.get(ch_name, ch_name)
+            
+            # 提取IP
             m = re.match(r"http://(\d+\.\d+\.\d+\.\d+:\d+)/", url)
             if m:
                 ip_port = m.group(1)
-                groups.setdefault(ip_port, []).append((ch_main, url))
+                
+                # 如果这个IP是可用的，添加到频道映射
+                if ip_port in ip_speed_results:
+                    provider, score, latency = ip_speed_results[ip_port]
+                    
+                    # 标准化频道名称
+                    main_channel = ch_name
+                    for main_ch, aliases in CHANNEL_MAPPING.items():
+                        if ch_name in aliases or ch_name == main_ch:
+                            main_channel = main_ch
+                            break
+                    
+                    channel_to_ips.setdefault(main_channel, []).append((ch_name, url, provider, score))
+    
+    # 为每个频道选择最快的前2个源
+    final_channels = {}
+    for channel, sources in channel_to_ips.items():
+        # 按评分排序并取前2个
+        sources.sort(key=lambda x: x[3], reverse=True)
+        final_channels[channel] = sources[:2]  # 只保留前2个最快的
+    
+    logger.info(f"🎯 频道处理完成: {len(final_channels)} 个频道，每个频道保留2个最快源")
+    
+    return final_channels
 
-    def detect_ip(ip_port, entries):
-        rep_channels = [u for c, u in entries if c == "CCTV1"]
-        if not rep_channels and entries:
-            rep_channels = [entries[0][1]]
-        playable = any(check_stream(u) for u in rep_channels)
-        print(f"IP {ip_port}: {'可播放' if playable else '不可播放'}，测试频道: {rep_channels}")
-        return ip_port, playable
+def priority_based_selection(sorted_channels: Dict, priority_channels: List[str] = None) -> Dict:
+    """
+    基于频道优先级的源选择策略
+    重要频道保留2个源，次要频道保留1个源
+    """
+    if priority_channels is None:
+        # 默认重要频道列表
+        priority_channels = [
+            "CCTV1", "CCTV2", "CCTV3", "CCTV4", "CCTV5", "CCTV5+", "CCTV6", "CCTV7", "CCTV8",
+            "CCTV9", "CCTV10", "CCTV11", "CCTV12", "CCTV13", "CCTV14", "CCTV15", "CCTV16", "CCTV17",
+            "湖南卫视", "浙江卫视", "江苏卫视", "北京卫视", "东方卫视", "广东卫视", "深圳卫视"
+        ]
+    
+    optimized_channels = {}
+    
+    for channel, sources in sorted_channels.items():
+        if channel in priority_channels:
+            # 重要频道：保留2个最快源
+            optimized_channels[channel] = sources[:2]
+        else:
+            # 次要频道：只保留1个最快源
+            optimized_channels[channel] = sources[:1] if sources else []
+    
+    # 统计
+    priority_count = sum(1 for ch in optimized_channels if ch in priority_channels)
+    normal_count = len(optimized_channels) - priority_count
+    total_sources = sum(len(sources) for sources in optimized_channels.values())
+    
+    logger.info(f"🎯 优先级优化: {priority_count}个重要频道(2源), {normal_count}个普通频道(1源), 共{total_sources}个源")
+    
+    return optimized_channels
 
-    print(f"🚀 启动多线程检测（共 {len(groups)} 个 IP）...")
-    playable_ips = set()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {executor.submit(detect_ip, ip, chs): ip for ip, chs in groups.items()}
-        for future in concurrent.futures.as_completed(futures):
-            ip_port, ok = future.result()
-            if ok:
-                playable_ips.add(ip_port)
-
-    print(f"✅ 检测完成，可播放 IP 共 {len(playable_ips)} 个")
-
-    valid_lines = []
-    seen = set()
-
-    for ip_port in playable_ips:
-        province_operator = ip_info.get(ip_port, "未知")
-        for c, u in groups[ip_port]:
-            key = f"{c},{u}"
-            if key not in seen:
-                seen.add(key)
-                valid_lines.append(f"{c},{u}${province_operator}")
-
+def generate_optimized_iptv(sorted_channels: Dict):
+    """生成优化的IPTV文件，每个频道只保留1-2个最快源"""
+    
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
-        for category, ch_list in CHANNEL_CATEGORIES.items():
+        for category, channel_list in CHANNEL_CATEGORIES.items():
             f.write(f"{category},#genre#\n")
-            for ch in ch_list:
-                for line in valid_lines:
-                    name = line.split(",", 1)[0]
-                    if name == ch:
-                        f.write(line + "\n")
+            
+            channel_count = 0
+            for channel in channel_list:
+                if channel in sorted_channels:
+                    sources = sorted_channels[channel]
+                    channel_count += 1
+                    
+                    # 写入源
+                    for ch_name, url, provider, score in sources:
+                        f.write(f"{ch_name},{url}${provider}\n")
+            
             f.write("\n")
+            logger.info(f"  📁 {category}: {channel_count} 个频道")
+    
+    # 统计信息
+    total_channels = len(sorted_channels)
+    total_sources = sum(len(sources) for sources in sorted_channels.values())
+    
+    logger.info(f"🎯 优化版 IPTV.txt 生成完成！")
+    logger.info(f"📊 统计: {total_channels} 个频道, {total_sources} 个源")
+    logger.info(f"🚀 重要频道保留2个最快源，普通频道保留1个最快源")
 
-    print(f"🎯 IPTV.txt 生成完成（分类+去重+多线程检测），共 {len(valid_lines)} 条频道")
+def ultra_fast_third_stage():
+    """超快速的第三阶段：基于IP测速，每个频道只保留1-2个最快源"""
+    logger.info("🧩 第三阶段：超快速IP测速排序生成优化版 IPTV.txt")
+    
+    if not os.path.exists(ZUBO_FILE):
+        logger.warning("⚠️ zubo.txt 不存在，跳过")
+        return
+    
+    start_time = time.time()
+    
+    # 使用基于IP的快速测速
+    sorted_channels = fast_ip_based_sorting(max_workers=SAFE_CONFIG["max_workers"])
+    
+    if not sorted_channels:
+        logger.error("❌ 没有可用的频道数据，跳过IPTV文件生成")
+        return
+    
+    # 应用优先级策略
+    priority_channels = [
+        "CCTV1", "CCTV2", "CCTV3", "CCTV4", "CCTV5", "CCTV5+", "CCTV6", "CCTV7", "CCTV8",
+        "CCTV9", "CCTV10", "CCTV11", "CCTV12", "CCTV13", "CCTV14", "CCTV15", "CCTV16", "CCTV17",
+        "湖南卫视", "浙江卫视", "江苏卫视", "北京卫视", "东方卫视", "广东卫视", "深圳卫视",
+        "CCTV4K", "CCTV8K", "CCTV4欧洲", "CCTV4美洲"
+    ]
+    optimized_channels = priority_based_selection(sorted_channels, priority_channels)
+    
+    # 生成优化版IPTV文件
+    generate_optimized_iptv(optimized_channels)
+    
+    elapsed_time = time.time() - start_time
+    logger.info(f"⏱️ 总耗时: {elapsed_time:.1f} 秒")
 
 # ===============================
 # 文件推送  
 def push_all_files():
-    print("🚀 推送所有更新文件到 GitHub...")
+    logger.info("🚀 推送所有更新文件到 GitHub...")
     os.system('git config --global user.name "github-actions"')
     os.system('git config --global user.email "github-actions@users.noreply.github.com"')
     os.system("git add 计数.txt")
@@ -389,8 +616,20 @@ def push_all_files():
 # ===============================
 # 主执行逻辑
 if __name__ == "__main__":
-    run_count = first_stage()
-    if run_count in [12, 24, 36, 48, 60, 72]:
-        second_stage()
-        third_stage()
-    push_all_files()
+    try:
+        logger.info("🎬 开始执行 FOFA IPTV 扫描脚本")
+        start_time = time.time()
+        
+        run_count = first_stage()
+        if run_count in [12, 24, 36, 48, 60, 72]:
+            second_stage()
+            ultra_fast_third_stage()
+        
+        push_all_files()
+        
+        total_time = time.time() - start_time
+        logger.info(f"🎉 脚本执行完成！总耗时: {total_time:.2f} 秒")
+        
+    except Exception as e:
+        logger.error(f"💥 脚本执行异常: {e}")
+        # 不推送任何内容，确保安全

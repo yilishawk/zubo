@@ -166,3 +166,4 @@
 2025-10-21 17:21:36,040 [ERROR] ❌ 检查 http://110.80.17.38:9999/tsfile/live/0012_1.m3u8?key=txiptv&playlive=0&authid=0 失败：Command '['ffprobe', '-v', 'error', '-show_streams', '-i', 'http://110.80.17.38:9999/tsfile/live/0012_1.m3u8?key=txiptv&playlive=0&authid=0']' timed out after 7 seconds
 2025-10-21 17:21:38,969 [INFO] 🎯 New_IPTV.txt 生成完成，共 34 条有效频道
 2025-10-21 17:21:38,969 [INFO] 🚀 推送所有更新文件到 GitHub...
+2025-10-21 17:21:39,516 [INFO] ✅ 文件推送成功

@@ -138,3 +138,31 @@
 2025-10-21 16:29:40,239 [INFO] ✅ 第一阶段完成，当前轮次：5
 2025-10-21 16:29:40,240 [INFO] 🚀 推送所有更新文件到 GitHub...
 2025-10-21 16:29:41,014 [INFO] ✅ 文件推送成功
+2025-10-21 17:20:17,176 [INFO] 保存计数：6
+2025-10-21 17:20:17,176 [INFO] 📡 正在爬取当前页面: https://fofa.info/result?qbase64=ImlwdHYvbGl2ZS96aF9jbi5qcyI=
+2025-10-21 17:20:19,371 [INFO] ✅ 从当前页面提取 10 个唯一 IP:PORT
+2025-10-21 17:20:24,520 [INFO] new_ip/广东电信.txt 已追加写入 2 个 IP
+2025-10-21 17:20:24,520 [INFO] new_ip/广西电信.txt 已追加写入 1 个 IP
+2025-10-21 17:20:24,520 [INFO] new_ip/湖南电信.txt 已追加写入 2 个 IP
+2025-10-21 17:20:24,520 [INFO] new_ip/山西电信.txt 已追加写入 3 个 IP
+2025-10-21 17:20:24,521 [INFO] new_ip/福建省电信.txt 已追加写入 1 个 IP
+2025-10-21 17:20:24,521 [INFO] ✅ 第一阶段完成，当前轮次：6
+2025-10-21 17:20:24,674 [INFO] ✅ FFmpeg 已安装
+2025-10-21 17:20:24,674 [INFO] 🔔 生成 IPTV：遍历 IP 获取 JSON 并测试
+2025-10-21 17:20:24,675 [INFO] 🚀 多线程处理 10 个 IP
+2025-10-21 17:20:25,197 [WARNING] ⚠️ http://120.234.26.21:18181/iptv/live/1000.json?key=txiptv 返回状态码 404
+2025-10-21 17:20:25,208 [WARNING] ⚠️ http://115.46.80.66:18181/iptv/live/1000.json?key=txiptv 返回状态码 404
+2025-10-21 17:20:32,213 [ERROR] ❌ 检查 http://110.80.17.38:9999/tsfile/live/0001_1.m3u8?key=txiptv&playlive=0&authid=0 失败：Command '['ffprobe', '-v', 'error', '-show_streams', '-i', 'http://110.80.17.38:9999/tsfile/live/0001_1.m3u8?key=txiptv&playlive=0&authid=0']' timed out after 7 seconds
+2025-10-21 17:20:34,716 [ERROR] ❌ 处理 171.124.204.227:9888 失败：HTTPConnectionPool(host='171.124.204.227', port=9888): Max retries exceeded with url: /iptv/live/1000.json?key=txiptv (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x7fac9c0a64f0>, 'Connection to 171.124.204.227 timed out. (connect timeout=10)'))
+2025-10-21 17:20:34,722 [ERROR] ❌ 处理 113.218.242.80:9002 失败：HTTPConnectionPool(host='113.218.242.80', port=9002): Max retries exceeded with url: /iptv/live/1000.json?key=txiptv (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x7fac9c05dee0>, 'Connection to 113.218.242.80 timed out. (connect timeout=10)'))
+2025-10-21 17:20:39,221 [ERROR] ❌ 检查 http://110.80.17.38:9999/tsfile/live/0002_1.m3u8?key=txiptv&playlive=0&authid=0 失败：Command '['ffprobe', '-v', 'error', '-show_streams', '-i', 'http://110.80.17.38:9999/tsfile/live/0002_1.m3u8?key=txiptv&playlive=0&authid=0']' timed out after 7 seconds
+2025-10-21 17:20:46,229 [ERROR] ❌ 检查 http://110.80.17.38:9999/tsfile/live/0003_1.m3u8?key=txiptv&playlive=1&authid=0 失败：Command '['ffprobe', '-v', 'error', '-show_streams', '-i', 'http://110.80.17.38:9999/tsfile/live/0003_1.m3u8?key=txiptv&playlive=1&authid=0']' timed out after 7 seconds
+2025-10-21 17:20:50,876 [ERROR] ❌ 检查 http://111.8.242.102:9999/tsfile/live/1043_1.m3u8?key=txiptv&playlive=1&authid=0 失败：Command '['ffprobe', '-v', 'error', '-show_streams', '-i', 'http://111.8.242.102:9999/tsfile/live/1043_1.m3u8?key=txiptv&playlive=1&authid=0']' timed out after 7 seconds
+2025-10-21 17:20:53,237 [ERROR] ❌ 检查 http://110.80.17.38:9999/tsfile/live/0004_1.m3u8?key=txiptv&playlive=0&authid=0 失败：Command '['ffprobe', '-v', 'error', '-show_streams', '-i', 'http://110.80.17.38:9999/tsfile/live/0004_1.m3u8?key=txiptv&playlive=0&authid=0']' timed out after 7 seconds
+2025-10-21 17:21:00,246 [ERROR] ❌ 检查 http://110.80.17.38:9999/tsfile/live/0005_1.m3u8?key=txiptv&playlive=1&authid=0 失败：Command '['ffprobe', '-v', 'error', '-show_streams', '-i', 'http://110.80.17.38:9999/tsfile/live/0005_1.m3u8?key=txiptv&playlive=1&authid=0']' timed out after 7 seconds
+2025-10-21 17:21:07,254 [ERROR] ❌ 检查 http://110.80.17.38:9999/tsfile/live/0006_1.m3u8?key=txiptv&playlive=1&authid=0 失败：Command '['ffprobe', '-v', 'error', '-show_streams', '-i', 'http://110.80.17.38:9999/tsfile/live/0006_1.m3u8?key=txiptv&playlive=1&authid=0']' timed out after 7 seconds
+2025-10-21 17:21:14,266 [ERROR] ❌ 检查 http://110.80.17.38:9999/tsfile/live/0007_1.m3u8?key=txiptv&playlive=0&authid=0 失败：Command '['ffprobe', '-v', 'error', '-show_streams', '-i', 'http://110.80.17.38:9999/tsfile/live/0007_1.m3u8?key=txiptv&playlive=0&authid=0']' timed out after 7 seconds
+2025-10-21 17:21:21,273 [ERROR] ❌ 检查 http://110.80.17.38:9999/tsfile/live/0008_1.m3u8?key=txiptv&playlive=1&authid=0 失败：Command '['ffprobe', '-v', 'error', '-show_streams', '-i', 'http://110.80.17.38:9999/tsfile/live/0008_1.m3u8?key=txiptv&playlive=1&authid=0']' timed out after 7 seconds
+2025-10-21 17:21:36,040 [ERROR] ❌ 检查 http://110.80.17.38:9999/tsfile/live/0012_1.m3u8?key=txiptv&playlive=0&authid=0 失败：Command '['ffprobe', '-v', 'error', '-show_streams', '-i', 'http://110.80.17.38:9999/tsfile/live/0012_1.m3u8?key=txiptv&playlive=0&authid=0']' timed out after 7 seconds
+2025-10-21 17:21:38,969 [INFO] 🎯 New_IPTV.txt 生成完成，共 34 条有效频道
+2025-10-21 17:21:38,969 [INFO] 🚀 推送所有更新文件到 GitHub...

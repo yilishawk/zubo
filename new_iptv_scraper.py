@@ -24,7 +24,7 @@ logging.basicConfig(
 # 配置区
 FOFA_URL = "https://fofa.info/result?qbase64=ImlwdHYvbGl2ZS96aF9jbi5qcyI="
 HEADERS = {
-"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 }
 COUNTER_FILE = "new_计数.txt"  # 新计数文件
 IP_DIR = "new_ip"  # 新 IP 目录
@@ -142,44 +142,47 @@ def check_ffmpeg():
         return False
 
 # ===============================
-# 第一阶段：从 FOFA 爬取 IP:PORT
+# 【修改】第一阶段：只抓取当前页面IP
 def first_stage():
     all_ips = set()
-    logging.info(f"📡 正在爬取 FOFA URL: {FOFA_URL}")
-    for header in HEADERS:
-        try:
-            r = requests.get(FOFA_URL, headers=header, timeout=15)
-            ips_found = re.findall(r'http://([\d\.]+:\d+)/?', r.text)
-            all_ips.update(ips_found)
-            logging.info(f"✅ 从本次请求提取 {len(ips_found)} 个 IP:PORT")
-        except Exception as e:
-            logging.error(f"❌ 爬取失败：{e}")
-        time.sleep(random.uniform(1, 3))
+    mode, run_count = check_and_clear_files_by_run_count()
+    
+    logging.info(f"📡 正在爬取当前页面: {FOFA_URL}")
+    
+    # 单次请求 - 只抓取第1页
+    try:
+        response = requests.get(FOFA_URL, headers=HEADERS, timeout=15)
+        
+        # 【修改】精准正则：只匹配 xxx.xxx.xxx.xxx:端口
+        ip_pattern = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}\b'
+        ips = re.findall(ip_pattern, response.text)
+        all_ips = set(ips)  # 去重
+        
+        logging.info(f"✅ 从当前页面提取 {len(all_ips)} 个唯一 IP:PORT")
+        
+    except Exception as e:
+        logging.error(f"❌ 爬取失败：{e}")
+        return run_count
 
     if not all_ips:
-        logging.warning("⚠️ 未找到 IP，可能是 FOFA 反爬或结果为空")
-        return 0
+        logging.warning("⚠️ 当前页面未找到 IP")
+        return run_count
 
+    # 查询地区并分类保存
     province_isp_dict = {}
-    for ip_port in all_ips:
-        try:
+    with requests.Session() as session:
+        session.headers.update(HEADERS)
+        
+        for ip_port in all_ips:
             ip = ip_port.split(":")[0]
-            res = requests.get(f"http://ip-api.com/json/{ip}?lang=zh-CN", timeout=10)
-            data = res.json()
-            province = data.get("regionName", "未知")
-            isp = get_isp(ip)
-            if isp == "未知":
-                continue
-            fname = f"{province}{isp}.txt"
-            province_isp_dict.setdefault(fname, set()).add(ip_port)
-            time.sleep(0.5)
-        except Exception as e:
-            logging.error(f"❌ 查询 {ip_port} 的地区失败：{e}")
-            continue
+            location = query_ip_location(ip, session)
+            if location:
+                province_isp_dict.setdefault(location, set()).add(ip_port)
+            time.sleep(0.5)  # 防反爬
 
-    mode, run_count = check_and_clear_files_by_run_count()
+    # 保存到文件
     for filename, ip_set in province_isp_dict.items():
-        path = os.path.join(IP_DIR, filename)
+        path = os.path.join(IP_DIR, f"{filename}.txt")
         try:
             with open(path, mode, encoding="utf-8") as f:
                 for ip_port in sorted(ip_set):
@@ -187,8 +190,24 @@ def first_stage():
             logging.info(f"{path} 已{'覆盖' if mode=='w' else '追加'}写入 {len(ip_set)} 个 IP")
         except Exception as e:
             logging.error(f"❌ 写入 {path} 失败：{e}")
+    
     logging.info(f"✅ 第一阶段完成，当前轮次：{run_count}")
     return run_count
+
+def query_ip_location(ip, session):
+    """查询IP地区"""
+    try:
+        url = f"http://ip-api.com/json/{ip}?lang=zh-CN"
+        resp = session.get(url, timeout=8)
+        data = resp.json()
+        province = data.get("regionName", "未知")
+        isp = get_isp(ip)
+        if isp == "未知":
+            return None
+        return f"{province}{isp}"
+    except Exception as e:
+        logging.error(f"❌ 查询 {ip} 地区失败：{e}")
+        return None
 
 # ===============================
 # 第二/第三阶段合并：获取 JSON、处理 URL、测试连通性、生成 IPTV

@@ -16,7 +16,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("new_iptv.log")  # 新日志文件
+        logging.FileHandler("new_iptv.log", encoding='utf-8')
     ]
 )
 
@@ -24,29 +24,15 @@ logging.basicConfig(
 # 配置区
 FOFA_URL = "https://fofa.info/result?qbase64=ImlwdHYvbGl2ZS96aF9jbi5qcyI="
 HEADERS = {
-"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
-COUNTER_FILE = "new_计数.txt"  # 新计数文件
-IP_DIR = "new_ip"  # 新 IP 目录
-IPTV_FILE = "New_IPTV.txt"  # 新 IPTV 文件
+COUNTER_FILE = "new_计数.txt"
+IP_DIR = "new_ip"
+IPTV_FILE = "New_IPTV.txt"
 
-# 频道分类
-CHANNEL_CATEGORIES = {
-    "央视频道": [
-        "CCTV1", "CCTV2", "CCTV3", "CCTV4", "CCTV5", "CCTV6", "CCTV7",
-        "CCTV8", "CCTV9", "CCTV10", "CCTV11", "CCTV12", "CCTV13", "CCTV14", "CCTV15"
-    ],
-    "卫视频道": [
-        "湖南卫视", "浙江卫视", "江苏卫视", "东方卫视", "深圳卫视", "北京卫视", "广东卫视",
-        "陕西卫视", "安徽卫视", "四川卫视", "重庆卫视", "东南卫视", "河南卫视", "山西卫视", 
-        "江西卫视", "贵州卫视"
-    ],
-    "香港电视": ["凤凰卫视"],
-    "省内": ["陕西一套", "陕西二套"],
-}
-
-# 频道映射
-CHANNEL_MAPPING = {
+# ===============================
+# 【完整频道映射】40频道全覆盖
+FULL_CHANNEL_MAPPING = {
     "CCTV1": ["CCTV1-综合", "CCTV-1", "CCTV1 HD"],
     "CCTV2": ["CCTV2-财经", "CCTV-2", "CCTV2 HD"],
     "CCTV3": ["CCTV3-综艺", "CCTV-3", "CCTV3 HD"],
@@ -62,25 +48,40 @@ CHANNEL_MAPPING = {
     "CCTV13": ["CCTV13-新闻", "CCTV-13", "CCTV13 HD"],
     "CCTV14": ["CCTV14-少儿", "CCTV-14", "CCTV14 HD"],
     "CCTV15": ["CCTV15-音乐", "CCTV-15", "CCTV15 HD"],
-    "湖南卫视": ["湖南卫视HD", "湖南卫视"],
-    "浙江卫视": ["浙江卫视HD", "浙江卫视"],
-    "江苏卫视": ["江苏卫视HD", "江苏卫视"],
-    "东方卫视": ["上海卫视", "东方卫视"],
-    "深圳卫视": ["深圳卫视HD", "深圳卫视"],
-    "北京卫视": ["北京卫视HD", "北京卫视"],
-    "广东卫视": ["广东卫视HD", "广东卫视"],
-    "陕西卫视": ["陕西卫视", "陕西卫视HD"],
-    "安徽卫视": ["安徽卫视HD", "安徽卫视"],
-    "四川卫视": ["四川卫视", "四川卫视HD"],
-    "重庆卫视": ["重庆卫视", "重庆卫视HD"],
-    "东南卫视": ["东南卫视"],
-    "河南卫视": ["河南卫视", "河南卫视HD"],
     "山西卫视": ["山西卫视"],
-    "江西卫视": ["江西卫视"],
+    "湖南卫视": ["湖南卫视"],
+    "浙江卫视": ["浙江卫视"],
+    "广东卫视": ["广东卫视"],
+    "深圳卫视": ["深圳卫视"],
+    "天津卫视": ["天津卫视"],
+    "山东卫视": ["山东卫视"],
+    "重庆卫视": ["重庆卫视"],
+    "金鹰卡通": ["金鹰卡通"],
+    "湖北卫视": ["湖北卫视"],
+    "黑龙江卫视": ["黑龙江卫视"],
+    "辽宁卫视": ["辽宁卫视"],
+    "上海卫视": ["上海卫视", "东方卫视"],
+    "江苏卫视": ["江苏卫视"],
+    "北京卫视": ["北京卫视"],
+    "四川卫视": ["四川卫视"],
+    "河南卫视": ["河南卫视"],
     "贵州卫视": ["贵州卫视"],
+    "东南卫视": ["东南卫视"],
+    "广西卫视": ["广西卫视"],
+    "江西卫视": ["江西卫视"],
+    "吉林卫视": ["吉林卫视"],
+    "青海卫视": ["青海卫视"],
+    "安徽卫视": ["安徽卫视"],
+    "陕西卫视": ["陕西卫视"],
     "凤凰卫视": ["凤凰卫视"],
-    "陕西一套": ["陕西一套"],
-    "陕西二套": ["陕西二套"],
+}
+
+# 频道分类
+CHANNEL_CATEGORIES = {
+    "央视频道": [k for k in FULL_CHANNEL_MAPPING.keys() if k.startswith("CCTV")],
+    "卫视频道": [k for k in FULL_CHANNEL_MAPPING.keys() if "卫视" in k and k not in ["凤凰卫视"]],
+    "香港电视": ["凤凰卫视"],
+    "少儿频道": ["金鹰卡通"],
 }
 
 # ===============================
@@ -88,261 +89,283 @@ CHANNEL_MAPPING = {
 def get_run_count():
     if os.path.exists(COUNTER_FILE):
         try:
-            return int(open(COUNTER_FILE).read().strip())
-        except Exception as e:
-            logging.error(f"读取计数文件失败：{e}")
+            return int(open(COUNTER_FILE, encoding='utf-8').read().strip())
+        except:
             return 0
     return 0
 
 def save_run_count(count):
     try:
-        open(COUNTER_FILE, "w").write(str(count))
-        logging.info(f"保存计数：{count}")
+        with open(COUNTER_FILE, "w", encoding='utf-8') as f:
+            f.write(str(count))
+        logging.info(f"✅ 保存计数：{count}")
     except Exception as e:
-        logging.error(f"保存计数文件失败：{e}")
+        logging.error(f"❌ 保存计数失败：{e}")
 
 def check_and_clear_files_by_run_count():
     os.makedirs(IP_DIR, exist_ok=True)
     count = get_run_count() + 1
+    mode = "w" if count >= 73 else "a"
     if count >= 73:
-        logging.info(f"🧹 第 {count} 次运行，清空 {IP_DIR} 下所有 .txt 文件")
+        logging.info(f"🧹 第 {count} 次运行，清空IP目录")
         for f in os.listdir(IP_DIR):
             if f.endswith(".txt"):
                 try:
                     os.remove(os.path.join(IP_DIR, f))
-                except Exception as e:
-                    logging.error(f"删除 {f} 失败：{e}")
-        save_run_count(1)
-        return "w", 1
-    else:
-        save_run_count(count)
-        return "a", count
+                except:
+                    pass
+        count = 1
+    save_run_count(count)
+    return mode, count
 
 # ===============================
-# IP 运营商判断
+# IP运营商判断（简化版）
 def get_isp(ip):
-    if re.match(r"^(1[0-9]{2}|2[0-3]{2}|42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+    ip_prefix = ip.split('.')[0]
+    if ip_prefix in ['111', '112', '113', '114', '115', '116', '117', '118', '119', '120', '121', '122', '123', '124', '125', '126', '127']:
         return "电信"
-    elif re.match(r"^(42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+    elif ip_prefix in ['42', '43', '101', '103', '106', '110', '175', '180', '182', '183', '185', '186', '187']:
         return "联通"
-    elif re.match(r"^(223|36|37|38|39|100|101|102|103|104|105|106|107|108|109|134|135|136|137|138|139|150|151|152|157|158|159|170|178|182|183|184|187|188|189)\.", ip):
+    elif ip_prefix in ['223', '36', '37', '38', '39', '100', '134', '135', '136', '137', '138', '139', '150', '151', '152', '157', '158', '159', '170', '178', '184']:
         return "移动"
-    else:
-        return "未知"
+    return "其他"
 
 # ===============================
-# 检查 FFmpeg 可用性
+# FFmpeg检查
 def check_ffmpeg():
     try:
-        subprocess.run(["ffprobe", "-version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-        logging.info("✅ FFmpeg 已安装")
+        subprocess.run(["ffprobe", "-version"], stdout=subprocess.PIPE, 
+                      stderr=subprocess.PIPE, check=True, timeout=5)
         return True
-    except Exception as e:
-        logging.error(f"❌ FFmpeg 未安装或不可用：{e}")
+    except:
         return False
 
 # ===============================
-# 【修改】第一阶段：只抓取当前页面IP
+# 第一阶段：抓取IP
 def first_stage():
-    all_ips = set()
     mode, run_count = check_and_clear_files_by_run_count()
     
-    logging.info(f"📡 正在爬取当前页面: {FOFA_URL}")
+    logging.info(f"📡 爬取FOFA：{FOFA_URL}")
     
-    # 单次请求 - 只抓取第1页
     try:
-        response = requests.get(FOFA_URL, headers=HEADERS, timeout=15)
+        time.sleep(random.uniform(1, 3))
+        response = requests.get(FOFA_URL, headers=HEADERS, timeout=20)
+        response.raise_for_status()
         
-        # 【修改】精准正则：只匹配 xxx.xxx.xxx.xxx:端口
-        ip_pattern = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}\b'
-        ips = re.findall(ip_pattern, response.text)
-        all_ips = set(ips)  # 去重
+        ip_pattern = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{2,5}\b'
+        all_ips = set(re.findall(ip_pattern, response.text))
         
-        logging.info(f"✅ 从当前页面提取 {len(all_ips)} 个唯一 IP:PORT")
+        logging.info(f"✅ 提取 {len(all_ips)} 个唯一IP")
         
-    except Exception as e:
-        logging.error(f"❌ 爬取失败：{e}")
-        return run_count
+        if not all_ips:
+            return run_count
 
-    if not all_ips:
-        logging.warning("⚠️ 当前页面未找到 IP")
-        return run_count
+        # 查询地区并保存
+        province_isp_dict = {}
+        with requests.Session() as session:
+            session.headers.update(HEADERS)
+            for ip_port in all_ips:
+                ip = ip_port.split(':')[0]
+                try:
+                    resp = session.get(f"http://ip-api.com/json/{ip}?lang=zh-CN", timeout=8)
+                    data = resp.json()
+                    if data.get("status") == "success":
+                        province = data.get("regionName", "未知")
+                        isp = get_isp(ip)
+                        if isp != "其他":
+                            location = f"{province}{isp}"
+                            province_isp_dict.setdefault(location, set()).add(ip_port)
+                except:
+                    continue
+                time.sleep(0.5)
 
-    # 查询地区并分类保存
-    province_isp_dict = {}
-    with requests.Session() as session:
-        session.headers.update(HEADERS)
-        
-        for ip_port in all_ips:
-            ip = ip_port.split(":")[0]
-            location = query_ip_location(ip, session)
-            if location:
-                province_isp_dict.setdefault(location, set()).add(ip_port)
-            time.sleep(0.5)  # 防反爬
-
-    # 保存到文件
-    for filename, ip_set in province_isp_dict.items():
-        path = os.path.join(IP_DIR, f"{filename}.txt")
-        try:
+        # 保存文件
+        for filename, ip_set in province_isp_dict.items():
+            path = os.path.join(IP_DIR, f"{filename}.txt")
             with open(path, mode, encoding="utf-8") as f:
                 for ip_port in sorted(ip_set):
                     f.write(ip_port + "\n")
-            logging.info(f"{path} 已{'覆盖' if mode=='w' else '追加'}写入 {len(ip_set)} 个 IP")
-        except Exception as e:
-            logging.error(f"❌ 写入 {path} 失败：{e}")
+            logging.info(f"💾 {path}：{len(ip_set)}个IP")
+
+    except Exception as e:
+        logging.error(f"❌ 第一阶段失败：{e}")
     
-    logging.info(f"✅ 第一阶段完成，当前轮次：{run_count}")
+    logging.info(f"✅ 第一阶段完成，轮次：{run_count}")
     return run_count
 
-def query_ip_location(ip, session):
-    """查询IP地区"""
-    try:
-        url = f"http://ip-api.com/json/{ip}?lang=zh-CN"
-        resp = session.get(url, timeout=8)
-        data = resp.json()
-        province = data.get("regionName", "未知")
-        isp = get_isp(ip)
-        if isp == "未知":
-            return None
-        return f"{province}{isp}"
-    except Exception as e:
-        logging.error(f"❌ 查询 {ip} 地区失败：{e}")
-        return None
-
 # ===============================
-# 第二/第三阶段合并：获取 JSON、处理 URL、测试连通性、生成 IPTV
+# 第二阶段：终极版IPTV生成（一IP通吃40频道）
 def generate_iptv():
     if not check_ffmpeg():
-        logging.error("⚠️ FFmpeg 不可用，跳过 IPTV 生成")
+        logging.error("⚠️ FFmpeg不可用，跳过IPTV生成")
         return
 
-    logging.info("🔔 生成 IPTV：遍历 IP 获取 JSON 并测试")
-    if not os.path.exists(IP_DIR):
-        logging.error("⚠️ new_ip 目录不存在")
-        return
-
+    logging.info("🎬 【终极版】一IP通吃40频道策略")
+    
+    # 构建别名映射
     alias_map = {}
-    for main_name, aliases in CHANNEL_MAPPING.items():
+    for main_name, aliases in FULL_CHANNEL_MAPPING.items():
         for alias in aliases:
             alias_map[alias] = main_name
 
+    # 读取IP信息
     ip_info = {}
     for fname in os.listdir(IP_DIR):
-        if not fname.endswith(".txt"):
-            continue
-        province_operator = fname.replace(".txt", "")
-        path = os.path.join(IP_DIR, fname)
-        try:
-            with open(path, encoding="utf-8") as f:
+        if fname.endswith(".txt"):
+            province_operator = fname.replace(".txt", "")
+            with open(os.path.join(IP_DIR, fname), encoding="utf-8") as f:
                 for line in f:
                     ip_port = line.strip()
-                    ip_info[ip_port] = province_operator
-        except Exception as e:
-            logging.error(f"❌ 读取 {path} 失败：{e}")
-            continue
+                    if ip_port:
+                        ip_info[ip_port] = province_operator
 
     all_valid_lines = []
-    seen = set()
+    seen_urls = set()
 
     def process_ip(ip_port):
-        base_url = f"http://{ip_port}"
-        json_url = f"{base_url}/iptv/live/1000.json?key=txiptv"
         try:
-            r = requests.get(json_url, timeout=10)
-            if r.status_code != 200:
-                logging.warning(f"⚠️ {json_url} 返回状态码 {r.status_code}")
+            base_url = f"http://{ip_port}"
+            json_url = f"{base_url}/iptv/live/1000.json?key=txiptv"
+            
+            resp = requests.get(json_url, timeout=8)
+            if resp.status_code != 200:
                 return []
-            data = r.json()
+                
+            data = resp.json()
             if data.get("code") != 0 or not data.get("data"):
-                logging.warning(f"⚠️ {json_url} 返回无效数据")
                 return []
 
-            local_valid = []
+            # 只测试CCTV1验证IP
+            test_url = None
             for item in data["data"]:
-                ch_name = item.get("name", "")
-                rel_url = item.get("url", "")
-                if not ch_name or not rel_url:
-                    continue
+                if "CCTV1" in item.get("name", ""):
+                    rel_url = item.get("url", "")
+                    test_url = f"{base_url}{rel_url}" if not rel_url.startswith("http") else rel_url
+                    break
+            
+            if not test_url:
+                return []
 
-                if rel_url.startswith("http://"):
-                    parsed = re.sub(r'http://[^/]+', base_url, rel_url)
-                else:
-                    parsed = f"{base_url}{rel_url}"
+            # 一IP通吃：CCTV1通过=40频道全通过！
+            if check_m3u8_fast(test_url):
+                logging.info(f"✅ {ip_port} CCTV1通过 → 40频道全采纳！")
+                
+                valid_channels = []
+                for item in data["data"]:
+                    ch_name = item.get("name", "")
+                    rel_url = item.get("url", "")
+                    
+                    if not ch_name or not rel_url:
+                        continue
+                        
+                    parsed_url = f"{base_url}{rel_url}" if not rel_url.startswith("http") else re.sub(r'http://[^/]+', base_url, rel_url)
+                    
+                    if parsed_url in seen_urls:
+                        continue
+                    seen_urls.add(parsed_url)
+                    
+                    ch_main = alias_map.get(ch_name, ch_name)
+                    valid_channels.append(f"{ch_main},{parsed_url}${ip_info.get(ip_port, '未知')}")
+                
+                return valid_channels
+            else:
+                logging.debug(f"❌ {ip_port} CCTV1失败")
+                return []
 
-                ch_main = alias_map.get(ch_name, ch_name)
-                key = f"{ch_main},{parsed}"
-                if key in seen:
-                    continue
-                seen.add(key)
-
-                if "CCTV1" in ch_name or not local_valid:
-                    if check_m3u8(parsed):
-                        local_valid.append(f"{ch_main},{parsed}${ip_info.get(ip_port, '未知')}")
-            return local_valid
         except Exception as e:
-            logging.error(f"❌ 处理 {ip_port} 失败：{e}")
+            logging.debug(f"处理 {ip_port} 失败：{e}")
             return []
 
-    def check_m3u8(url, timeout=5):
+    def check_m3u8_fast(url, timeout=4):
         try:
+            if requests.head(url, timeout=2).status_code == 200:
+                return True
             result = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_streams", "-i", url],
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout + 2
+                ["ffprobe", "-v", "quiet", "-t", "2", "-i", url],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
             )
-            return b"codec_type" in result.stdout
-        except Exception as e:
-            logging.error(f"❌ 检查 {url} 失败：{e}")
+            return result.returncode == 0
+        except:
             return False
 
+    # 多线程处理
     ip_ports = list(ip_info.keys())
-    logging.info(f"🚀 多线程处理 {len(ip_ports)} 个 IP")
+    logging.info(f"🚀 测试 {len(ip_ports)} 个IP（每IP只测1个频道）")
+    
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         futures = [executor.submit(process_ip, ip) for ip in ip_ports]
         for future in concurrent.futures.as_completed(futures):
             all_valid_lines.extend(future.result())
 
+    # 生成M3U文件
     beijing_now = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
-    disclaimer_url = "https://kakaxi-1.asia/LOGO/Disclaimer.mp4"
-
+    
     try:
         with open(IPTV_FILE, "w", encoding="utf-8") as f:
-            f.write(f"更新时间: {beijing_now}（北京时间）\n\n")
-            f.write("更新时间,#genre#\n")
-            f.write(f"{beijing_now},{disclaimer_url}\n\n")
-
+            f.write(f"#EXTM3U\n")
+            f.write(f'#PLAYLIST: {beijing_now} | 频道: {len(all_valid_lines)//len(ip_info)}x40 = {len(all_valid_lines)}\n\n')
+            
             for category, ch_list in CHANNEL_CATEGORIES.items():
-                f.write(f"{category},#genre#\n")
-                for ch in ch_list:
-                    for line in all_valid_lines:
-                        name = line.split(",", 1)[0]
-                        if name == ch:
-                            f.write(line + "\n")
+                f.write(f"#EXTINF:-1 group-title=\"{category}\"\n")
+                category_lines = [line for line in all_valid_lines if line.split(",", 1)[0] in ch_list]
+                for line in sorted(category_lines):
+                    url_part = line.split("$")[0]
+                    f.write(f"{url_part}\n")
                 f.write("\n")
-        logging.info(f"🎯 {IPTV_FILE} 生成完成，共 {len(all_valid_lines)} 条有效频道")
+
+        total_channels = len(set(line.split(",", 1)[0] for line in all_valid_lines))
+        logging.info(f"🎉 【终极成功】{IPTV_FILE} 生成完成！")
+        logging.info(f"   📺 唯一频道: {total_channels}/40")
+        logging.info(f"   🌐 有效源:   {len(all_valid_lines)}")
+        
     except Exception as e:
-        logging.error(f"❌ 写入 {IPTV_FILE} 失败：{e}")
+        logging.error(f"❌ 写入失败：{e}")
 
 # ===============================
-# 文件推送
+# Git推送
 def push_all_files():
-    logging.info("🚀 推送所有更新文件到 GitHub...")
-    try:
-        os.system('git config --global user.name "github-actions[bot]"')
-        os.system('git config --global user.email "github-actions[bot]@users.noreply.github.com"')
-        os.system(f"git add {COUNTER_FILE}")
-        os.system(f"git add {IP_DIR}/*.txt || true")
-        os.system(f"git add {IPTV_FILE} || true")
-        os.system("git add new_iptv.log || true")
-        os.system('git commit -m "自动更新：新计数、新IP文件、New_IPTV.txt、日志" || echo "⚠️ 无需提交"')
-        os.system("git push origin main")
-        logging.info("✅ 文件推送成功")
-    except Exception as e:
-        logging.error(f"❌ 推送失败：{e}")
+    logging.info("📤 推送文件到GitHub")
+    commands = [
+        'git config --global user.name "github-actions[bot]"',
+        'git config --global user.email "github-actions[bot]@users.noreply.github.com"',
+        f'git add {COUNTER_FILE}',
+        f'git add {IP_DIR}/*.txt || true',
+        f'git add {IPTV_FILE} || true',
+        'git add new_iptv.log || true',
+        'git commit -m "🤖 自动更新IPTV源 $(date +%Y-%m-%d\ %H:%M)" || echo "无变化"',
+        'git push origin main'
+    ]
+    
+    for cmd in commands:
+        result = os.system(cmd)
+        if result != 0:
+            logging.error(f"❌ 执行 {cmd} 失败")
+            return False
+    logging.info("✅ 推送成功")
+    return True
 
 # ===============================
-# 主执行逻辑
+# 【完整主程序入口】
 if __name__ == "__main__":
-    run_count = first_stage()
-    if run_count in [2, 4, 6]:
-        generate_iptv()
-    push_all_files()
+    start_time = time.time()
+    
+    try:
+        logging.info("🚀 【终极IPTV脚本】启动！")
+        
+        # 第一阶段：抓取IP
+        run_count = first_stage()
+        
+        # 第二阶段：生成IPTV（第2,4,6次运行）
+        if run_count in [2, 4, 6]:
+            generate_iptv()
+        
+        # 第三阶段：推送GitHub
+        push_all_files()
+        
+        elapsed = time.time() - start_time
+        logging.info(f"✅ 任务完成！耗时：{elapsed:.1f}秒 | 轮次：{run_count}")
+        
+    except KeyboardInterrupt:
+        logging.info("👋 用户中断")
+    except Exception as e:
+        logging.error(f"💥 程序异常：{e}")

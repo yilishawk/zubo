@@ -1,0 +1,43 @@
+name: 🎬 Kiang电信IPTV自动更新
+on:
+  schedule:
+    - cron: '0 13,19 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # 1. 检出
+    - name: 📥 Checkout
+      uses: actions/checkout@v4
+      
+    # 2. Python
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    # 3. 依赖
+    - name: 📦 Install Dependencies
+      run: |
+        pip install --upgrade pip
+        pip install requests beautifulsoup4 schedule lxml
+        
+    # 4. FFmpeg
+    - name: 🔧 Install FFmpeg
+      run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      
+    # 5. 运行kiang脚本
+    - name: 🚀 Run Kiang IPTV Scraper
+      run: python kiang_iptv_scraper.py
+      
+    # 6. 推送
+    - name: 📤 Commit & Push
+      run: |
+        git config user.name "Kiang-Bot"
+        git config user.email "kiang-bot@github.com"
+        git add .
+        git commit -m "🎉 kiang电信IPTV $(date +%Y-%m-%d)" || echo "No changes"
+        git push

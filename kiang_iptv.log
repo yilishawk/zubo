@@ -88,3 +88,16 @@
 2025-10-23 11:38:15,885 [ERROR] ❌ kiang第4页失败：403 Client Error: Forbidden for url: https://tonkiang.us/iptvmulticast.php?page=4&iphone16=&code=
 2025-10-23 11:38:15,886 [INFO] 🎉 **kiang总计**：0个电信IP
 2025-10-23 11:38:15,886 [INFO] ✅ kiang完成！耗时: 12.3s | 电信IP: 0
+2025-10-23 11:42:03,334 [INFO] 🚀 kiang电信IPTV启动 (住宅代理版)
+2025-10-23 11:42:03,335 [INFO] 🌐 使用住宅代理: http://103.211.38.185:3128
+2025-10-23 11:42:03,335 [INFO] 📱 **小米Redmi K50 + 住宅代理** - 抓取kiang前4页电信IP
+2025-10-23 11:42:03,335 [INFO] 📄 kiang第 1/4 页
+2025-10-23 11:42:08,316 [ERROR] ❌ kiang第1页失败：HTTPSConnectionPool(host='tonkiang.us', port=443): Max retries exceeded with url: /iptvmulticast.php?page=1&iphone16=&code= (Caused by ProxyError('Unable to connect to proxy', NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff8e33a0610>: Failed to establish a new connection: [Errno 111] Connection refused')))
+2025-10-23 11:42:08,316 [INFO] 📄 kiang第 2/4 页
+2025-10-23 11:42:13,341 [ERROR] ❌ kiang第2页失败：HTTPSConnectionPool(host='tonkiang.us', port=443): Max retries exceeded with url: /iptvmulticast.php?page=2&iphone16=&code= (Caused by ProxyError('Unable to connect to proxy', NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff8e479d990>: Failed to establish a new connection: [Errno 111] Connection refused')))
+2025-10-23 11:42:13,341 [INFO] 📄 kiang第 3/4 页
+2025-10-23 11:42:17,918 [ERROR] ❌ kiang第3页失败：HTTPSConnectionPool(host='tonkiang.us', port=443): Max retries exceeded with url: /iptvmulticast.php?page=3&iphone16=&code= (Caused by ProxyError('Unable to connect to proxy', NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff8e3204050>: Failed to establish a new connection: [Errno 111] Connection refused')))
+2025-10-23 11:42:17,918 [INFO] 📄 kiang第 4/4 页
+2025-10-23 11:42:22,582 [ERROR] ❌ kiang第4页失败：HTTPSConnectionPool(host='tonkiang.us', port=443): Max retries exceeded with url: /iptvmulticast.php?page=4&iphone16=&code= (Caused by ProxyError('Unable to connect to proxy', NewConnectionError('<urllib3.connection.HTTPSConnection object at 0x7ff8e3205710>: Failed to establish a new connection: [Errno 111] Connection refused')))
+2025-10-23 11:42:22,582 [INFO] 🎉 **kiang总计**：0个电信IP
+2025-10-23 11:42:22,582 [INFO] ✅ kiang完成！耗时: 19.2s | 电信IP: 0

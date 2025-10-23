@@ -1,0 +1,32 @@
+name: 🎬 IPTV电信全网自动更新
+on:
+  schedule:
+    - cron: '0 13,19 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout
+      uses: actions/checkout@v4
+      
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: 📦 Install Dependencies
+      run: pip install requests beautifulsoup4 lxml
+      
+    - name: 🚀 Run IPTV Scraper
+      run: python iptv_scraper.py
+      
+    - name: 📤 Commit & Push
+      run: |
+        git config user.name "IPTV-Bot"
+        git config user.email "iptv-bot@github.com"
+        git add .
+        git commit -m "🎉 IPTV更新 $(date +%Y-%m-%d)" || echo "No changes"
+        git push

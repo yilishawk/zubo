@@ -1,44 +1,43 @@
-name: New IPTV Scraper
-
+name: 🎬 IPTV Auto Update
 on:
   schedule:
-    - cron: '0 * * * *'  # UTC 18:00 = 北京时间 02:00
-  workflow_dispatch:  # 支持手动触发
+    - cron: '0 13,19 * * *'
+  workflow_dispatch:
 
 jobs:
-  scrape-new-iptv:
+  update:
     runs-on: ubuntu-latest
-
+    
     steps:
-      # 检出代码
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # 设置 Python 环境
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
-      # 安装依赖
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-
-      # 运行脚本
-      - name: Run New IPTV scraper
-        run: python new_iptv_scraper.py
-
-      # 提交和推送更改
-      - name: Commit and push changes
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add new_计数.txt new_ip/*.txt New_IPTV.txt new_iptv.log || true
-          git commit -m "自动更新：新计数、新IP文件、New_IPTV.txt、日志" || echo "无更改可提交"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # ✅ 1. 检出代码
+    - name: 📥 Checkout
+      uses: actions/checkout@v4
+      
+    # ✅ 2. 设置 Python
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    # ✅ 3. 安装依赖（修复核心问题）
+    - name: 📦 Install Python Dependencies
+      run: |
+        pip install --upgrade pip
+        pip install requests schedule psutil
+        
+    # ✅ 4. 安装 FFmpeg
+    - name: 🔧 Install FFmpeg
+      run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      
+    # ✅ 5. 运行脚本
+    - name: 🚀 Run IPTV Scraper
+      run: python new_iptv_scraper.py --once
+      
+    # ✅ 6. 提交结果
+    - name: 📤 Commit & Push
+      run: |
+        git config user.name "IPTV-Bot"
+        git config user.email "bot@github.com"
+        git add .
+        git commit -m "🎉 IPTV Update $(date)" || echo "No changes"
+        git push

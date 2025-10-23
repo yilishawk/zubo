@@ -9,31 +9,22 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    # 1. 检出
     - name: 📥 Checkout
       uses: actions/checkout@v4
       
-    # 2. Python
     - name: 🐍 Setup Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
         
-    # 3. 依赖
     - name: 📦 Install Dependencies
       run: |
         pip install --upgrade pip
-        pip install requests beautifulsoup4 schedule lxml
+        pip install requests beautifulsoup4 lxml
         
-    # 4. FFmpeg
-    - name: 🔧 Install FFmpeg
-      run: sudo apt-get update && sudo apt-get install -y ffmpeg
-      
-    # 5. 运行kiang脚本
     - name: 🚀 Run Kiang IPTV Scraper
       run: python kiang_iptv_scraper.py
       
-    # 6. 推送
     - name: 📤 Commit & Push
       run: |
         git config user.name "Kiang-Bot"

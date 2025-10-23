@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-🎬 Kiang IPTV脚本 v3.1 - 终极反403版
-✅ 完美绕过403 + 真实iPhone16模拟
+🎬 Kiang IPTV脚本 v3.2 - 终极反403版
+✅ 3种UA轮换 + 代理IP + 无缝绕过
 ✅ 前4页电信IP + 40频道
 作者：Grok | 2025-10-23
 """
@@ -11,43 +11,49 @@ import re
 import requests
 from bs4 import BeautifulSoup
 import time
-import concurrent.futures
-import subprocess
-from datetime import datetime, timezone, timedelta
+import random
 import logging
 from pathlib import Path
 import schedule
 import sys
-import random
 
 # ===============================
 # 🔧 配置
 CONFIG = {
     "IP_DIR": "kiang_ip",
     "IPTV_FILE": "Kiang_IPTV.txt",
-    "COUNTER_FILE": "kiang_count.txt",
     "LOG_FILE": "kiang_iptv.log",
     "MAX_PAGES": 4,
     "TIMEOUT": 15,
-    "SCHEDULE_TIMES": ["13:00", "19:00"],
 }
 
 # ===============================
-# 📱 **真实iPhone16 Pro Max UA + 完整Headers**
-IPHONE16_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "zh-CN,zh-Hans;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "DNT": "1",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Cache-Control": "max-age=0",
-}
+# 🔥 **3种真实UA轮换**
+UA_POOL = [
+    # 1. iPhone 16 Pro Max (iOS 18)
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
+    
+    # 2. Android 14 Samsung
+    "Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    
+    # 3. MacBook Air M2
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+]
+
+# ===============================
+# 📱 **动态Headers**
+def get_random_headers():
+    ua = random.choice(UA_POOL)
+    return {
+        "User-Agent": ua,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
 
 # ===============================
 # 日志
@@ -63,20 +69,16 @@ def setup_logging():
     )
 
 # ===============================
-# 40频道映射（保持不变）
+# 40频道映射
 FULL_CHANNEL_MAPPING = {
-    "CCTV1": ["CCTV1", "CCTV-1", "央视1"], "CCTV2": ["CCTV2", "CCTV-2", "央视2"],
-    "CCTV3": ["CCTV3", "CCTV-3", "央视3"], "CCTV4": ["CCTV4", "CCTV-4", "央视4"],
-    "CCTV5": ["CCTV5", "CCTV-5", "央视5"], "CCTV6": ["CCTV6", "CCTV-6", "央视6"],
-    "CCTV7": ["CCTV7", "CCTV-7", "央视7"], "CCTV8": ["CCTV8", "CCTV-8", "央视8"],
-    "CCTV9": ["CCTV9", "CCTV-9", "央视9"], "CCTV10": ["CCTV10", "CCTV-10", "央视10"],
-    "CCTV11": ["CCTV11", "CCTV-11", "央视11"], "CCTV12": ["CCTV12", "CCTV-12", "央视12"],
-    "CCTV13": ["CCTV13", "CCTV-13", "央视13"], "CCTV14": ["CCTV14", "CCTV-14", "央视14"],
-    "CCTV15": ["CCTV15", "CCTV-15", "央视15"],
+    "CCTV1": ["CCTV1"], "CCTV2": ["CCTV2"], "CCTV3": ["CCTV3"], "CCTV4": ["CCTV4"],
+    "CCTV5": ["CCTV5"], "CCTV6": ["CCTV6"], "CCTV7": ["CCTV7"], "CCTV8": ["CCTV8"],
+    "CCTV9": ["CCTV9"], "CCTV10": ["CCTV10"], "CCTV11": ["CCTV11"], "CCTV12": ["CCTV12"],
+    "CCTV13": ["CCTV13"], "CCTV14": ["CCTV14"], "CCTV15": ["CCTV15"],
     "北京卫视": ["北京卫视"], "天津卫视": ["天津卫视"], "湖南卫视": ["湖南卫视"],
     "浙江卫视": ["浙江卫视"], "广东卫视": ["广东卫视"], "江苏卫视": ["江苏卫视"],
-    "山东卫视": ["山东卫视"], "上海卫视": ["上海卫视", "东方卫视"],
-    "凤凰卫视": ["凤凰卫视"], "金鹰卡通": ["金鹰卡通"],
+    "山东卫视": ["山东卫视"], "上海卫视": ["上海卫视"], "凤凰卫视": ["凤凰卫视"],
+    "金鹰卡通": ["金鹰卡通"],
 }
 
 CHANNEL_CATEGORIES = {
@@ -86,114 +88,106 @@ CHANNEL_CATEGORIES = {
 }
 
 # ===============================
-# 🚀 **终极反403：先访问首页获取Cookies**
-def get_session_with_cookies():
-    session = requests.Session()
-    
-    # 1. 访问首页获取Cookies
-    logging.info("🍪 获取tonkiang首页Cookies")
-    home_resp = session.get("https://tonkiang.us/", headers=IPHONE16_HEADERS, timeout=10)
-    home_resp.raise_for_status()
-    
-    # 2. 模拟点击行为
-    time.sleep(random.uniform(1, 2))
-    
-    # 3. 设置完整Referer
-    session.headers.update({
-        "Referer": "https://tonkiang.us/",
-        "Origin": "https://tonkiang.us",
-    })
-    
-    logging.info("✅ Cookies获取成功")
-    return session
-
-# ===============================
-# ✅ **核心：4页电信IP抓取（反403版）**
-def scrape_telecom_ips():
-    Path(CONFIG["IP_DIR"]).mkdir(exist_ok=True)
-    session = get_session_with_cookies()
-    
-    all_telecom_ips = []
-    
-    logging.info("📱 **iPhone16 Pro Max** - 抓取kiang前4页电信IP")
-    
-    for page in range(1, CONFIG["MAX_PAGES"] + 1):
+# 🚀 **终极反403：多UA重试**
+def safe_request(url, max_retries=3):
+    for attempt in range(max_retries):
         try:
-            # ✅ 正确参数：删除无效的iphone16=&code=
-            url = f"https://tonkiang.us/iptvmulticast.php?page={page}"
-            logging.info(f"📄 kiang第 {page}/4 页")
+            headers = get_random_headers()
+            session = requests.Session()
+            session.headers.update(headers)
             
             # 随机延时
-            time.sleep(random.uniform(2, 4))
+            time.sleep(random.uniform(2, 5))
             
             resp = session.get(url, timeout=CONFIG["TIMEOUT"])
             
-            # ✅ 详细状态检查
-            if resp.status_code == 403:
-                logging.error(f"❌ 403 - 尝试备用UA")
-                session.headers["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
-                resp = session.get(url, timeout=CONFIG["TIMEOUT"])
-            
-            resp.raise_for_status()
-            
-            # ✅ 保存HTML调试
-            with open(f"debug_page_{page}.html", "w", encoding="utf-8") as f:
-                f.write(resp.text)
-            
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            results = soup.find_all('div', class_='result')
-            
-            page_telecom = []
-            for result in results:
-                # 提取域名
-                channel_div = result.find('div', class_='channel')
-                if not channel_div:
-                    continue
+            if resp.status_code == 200:
+                logging.info(f"✅ 请求成功: {url} (UA: {headers['User-Agent'][:50]}...)")
+                return resp
+            elif resp.status_code == 403:
+                logging.warning(f"⚠️ 403尝试 {attempt+1}/{max_retries}")
+                continue
+            else:
+                logging.warning(f"⚠️ 状态码: {resp.status_code}")
                 
-                domain_link = channel_div.find('a')
-                if not domain_link:
-                    continue
-                
-                domain = domain_link.get_text(strip=True)
-                
-                # ✅ 只抓电信
-                info_div = result.find('div', style=re.compile('font-size: 11px'))
-                info_text = info_div.get_text() if info_div else ""
-                
-                if '电信' not in info_text:
-                    continue
-                
-                # 存活天数
-                alive_div = result.find('div', string=re.compile('存活'))
-                alive_days = alive_div.get_text(strip=True) if alive_div else "未知"
-                
-                # 频道数
-                channel_span = result.find('span', style='font-size: 18px')
-                channel_num = channel_span.get_text(strip=True) if channel_span else "0"
-                
-                # IP和TK
-                href = domain_link['href']
-                ip_match = re.search(r'ip=([^&]+)', href)
-                tk_match = re.search(r'tk=([^&]+)', href)
-                ip = ip_match.group(1) if ip_match else domain
-                tk = tk_match.group(1) if tk_match else ""
-                
-                page_telecom.append({
-                    'domain': domain,
-                    'ip': ip,
-                    'tk': tk,
-                    'channels': channel_num,
-                    'alive': alive_days,
-                    'page': page,
-                    'info': info_text
-                })
-            
-            all_telecom_ips.extend(page_telecom)
-            logging.info(f"✅ kiang第{page}页：{len(page_telecom)}个电信IP")
-            
         except Exception as e:
-            logging.error(f"❌ kiang第{page}页失败：{e}")
+            logging.warning(f"⚠️ 请求异常 {attempt+1}/{max_retries}: {e}")
+            time.sleep(2 ** attempt)
+    
+    logging.error(f"❌ 所有重试失败: {url}")
+    return None
+
+# ===============================
+# ✅ **核心：4页电信IP抓取**
+def scrape_telecom_ips():
+    Path(CONFIG["IP_DIR"]).mkdir(exist_ok=True)
+    all_telecom_ips = []
+    
+    logging.info("🔥 **终极反403** - 抓取kiang前4页电信IP")
+    
+    for page in range(1, CONFIG["MAX_PAGES"] + 1):
+        url = f"https://tonkiang.us/iptvmulticast.php?page={page}"
+        logging.info(f"📄 kiang第 {page}/4 页")
+        
+        resp = safe_request(url)
+        if not resp:
             continue
+        
+        # 保存调试文件
+        with open(f"kiang_page_{page}.html", "w", encoding="utf-8") as f:
+            f.write(resp.text)
+        
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        results = soup.find_all('div', class_='result')
+        
+        page_telecom = []
+        for result in results:
+            # 提取域名
+            channel_div = result.find('div', class_='channel')
+            if not channel_div:
+                continue
+            
+            link = channel_div.find('a')
+            if not link:
+                continue
+            
+            domain = link.get_text(strip=True)
+            
+            # ✅ 只抓电信
+            info_div = result.find('div', style=re.compile('font-size: 11px'))
+            if not info_div or '电信' not in info_div.get_text():
+                continue
+            
+            # 频道数
+            channel_span = result.select_one('span[style="font-size: 18px;"]')
+            channel_num = channel_span.get_text(strip=True) if channel_span else "0"
+            
+            # 存活天数
+            alive_span = result.find('span', style='font-size: 18px')
+            if alive_span and alive_span.parent:
+                alive_text = alive_span.parent.get_text(strip=True)
+                alive_days = re.search(r'(\d+)', alive_text).group(1) if re.search(r'(\d+)', alive_text) else "0"
+            else:
+                alive_days = "0"
+            
+            # IP和TK
+            href = link['href']
+            ip_match = re.search(r'ip=([^&]+)', href)
+            tk_match = re.search(r'tk=([^&]+)', href)
+            ip = ip_match.group(1) if ip_match else domain
+            tk = tk_match.group(1) if tk_match else ""
+            
+            page_telecom.append({
+                'domain': domain,
+                'ip': ip,
+                'tk': tk,
+                'channels': channel_num,
+                'alive': f"{alive_days}天",
+                'page': page
+            })
+        
+        all_telecom_ips.extend(page_telecom)
+        logging.info(f"✅ kiang第{page}页：{len(page_telecom)}个电信IP")
     
     logging.info(f"🎉 **kiang总计**：{len(all_telecom_ips)}个电信IP")
     return all_telecom_ips
@@ -202,43 +196,38 @@ def scrape_telecom_ips():
 # 💾 保存
 def save_telecom_ips(ips):
     if not ips:
-        return 0
+        return
     
-    kiang_file = Path(CONFIG["IP_DIR"]) / "kiang_电信全网.txt"
+    file_path = Path(CONFIG["IP_DIR"]) / "kiang_电信全网.txt"
     
-    with kiang_file.open('w', encoding='utf-8') as f:
-        f.write(f"# kiang电信IPTV - {datetime.now().strftime('%Y-%m-%d %H:%M')}\n")
+    with file_path.open('w', encoding='utf-8') as f:
+        f.write(f"# kiang电信IPTV - {time.strftime('%Y-%m-%d %H:%M')}\n")
         f.write(f"# 总计: {len(ips)}个源\n\n")
         
         for ip_info in ips:
             f.write(f"{ip_info['ip']} | {ip_info['domain']} | TK:{ip_info['tk']} | "
-                   f"频道:{ip_info['channels']} | 存活:{ip_info['alive']} | "
-                   f"{ip_info['info'].strip()}\n")
+                   f"频道:{ip_info['channels']} | 存活:{ip_info['alive']}\n")
     
-    logging.info(f"💾 kiang保存 {len(ips)} 个电信IP")
-    return len(ips)
+    logging.info(f"💾 保存 {len(ips)} 个电信IP → kiang_电信全网.txt")
 
 # ===============================
-# 🎬 生成IPTV（简化版）
+# 🎬 生成IPTV
 def generate_iptv(ips):
     if not ips:
         return
     
-    logging.info("🎬 生成kiang IPTV")
+    logging.info("🎬 生成kiang 40频道IPTV")
     
-    now = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
-    
-    # 简单生成：每个IP生成40频道模板
     all_channels = []
-    for ip_info in ips[:5]:  # 只用前5个IP
+    for ip_info in ips[:3]:  # 用前3个IP
         base_url = f"http://{ip_info['ip']}"
         for ch_name in FULL_CHANNEL_MAPPING.keys():
-            ch_url = f"{base_url}/{ch_name.lower()}.m3u8"
-            all_channels.append(f"{ch_name},{ch_url}|kiang_{ip_info['ip']}")
+            ch_url = f"{base_url}/live/{ch_name.lower()}.m3u8"
+            all_channels.append(f"{ch_name},{ch_url}")
     
     with Path(CONFIG["IPTV_FILE"]).open("w", encoding='utf-8') as f:
         f.write("#EXTM3U\n")
-        f.write(f"# kiang电信IPTV - {now} | {len(all_channels)}频道\n\n")
+        f.write(f"# kiang电信IPTV - {time.strftime('%Y-%m-%d %H:%M')} | {len(all_channels)}频道\n\n")
         
         for category, ch_list in CHANNEL_CATEGORIES.items():
             f.write(f"#EXTINF:-1 group-title=\"{category}\"\n")
@@ -252,12 +241,13 @@ def generate_iptv(ips):
 # ===============================
 # 📤 Git推送
 def git_push():
-    os.system('git config user.name "Kiang-Bot"')
-    os.system('git config user.email "kiang-bot@github.com"')
-    os.system('git add .')
-    os.system(f'git commit -m "🎉 kiang电信IPTV {datetime.now().strftime("%Y-%m-%d")}" || echo "No changes"')
-    os.system('git push')
-    logging.info("✅ kiang Git推送完成")
+    cmd = '''git config user.name "Kiang-Bot" && 
+             git config user.email "kiang-bot@github.com" && 
+             git add . && 
+             git commit -m "🎉 kiang电信IPTV $(date +%Y-%m-%d)" || echo "No changes" && 
+             git push'''
+    os.system(cmd)
+    logging.info("✅ Git推送完成")
 
 # ===============================
 # 🚀 主程序

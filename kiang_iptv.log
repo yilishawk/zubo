@@ -74,3 +74,17 @@
 2025-10-23 11:24:50,990 [ERROR] ❌ 第4页失败
 2025-10-23 11:24:50,990 [INFO] 🎉 **kiang总计**：0个电信IP
 2025-10-23 11:24:50,990 [INFO] ✅ kiang完成！耗时: 99.8s | 电信IP: 0
+2025-10-23 11:38:03,539 [INFO] 🚀 kiang电信IPTV启动 (真实小米版)
+2025-10-23 11:38:03,539 [INFO] 🍪 访问首页获取真实Cookies
+2025-10-23 11:38:03,887 [INFO] ✅ 真实会话建立成功
+2025-10-23 11:38:03,888 [INFO] 📱 **小米Redmi K50** - 抓取kiang前4页电信IP
+2025-10-23 11:38:03,888 [INFO] 📄 kiang第 1/4 页
+2025-10-23 11:38:06,699 [ERROR] ❌ kiang第1页失败：403 Client Error: Forbidden for url: https://tonkiang.us/iptvmulticast.php?page=1&iphone16=&code=
+2025-10-23 11:38:06,699 [INFO] 📄 kiang第 2/4 页
+2025-10-23 11:38:09,516 [ERROR] ❌ kiang第2页失败：403 Client Error: Forbidden for url: https://tonkiang.us/iptvmulticast.php?page=2&iphone16=&code=
+2025-10-23 11:38:09,516 [INFO] 📄 kiang第 3/4 页
+2025-10-23 11:38:12,039 [ERROR] ❌ kiang第3页失败：403 Client Error: Forbidden for url: https://tonkiang.us/iptvmulticast.php?page=3&iphone16=&code=
+2025-10-23 11:38:12,039 [INFO] 📄 kiang第 4/4 页
+2025-10-23 11:38:15,885 [ERROR] ❌ kiang第4页失败：403 Client Error: Forbidden for url: https://tonkiang.us/iptvmulticast.php?page=4&iphone16=&code=
+2025-10-23 11:38:15,886 [INFO] 🎉 **kiang总计**：0个电信IP
+2025-10-23 11:38:15,886 [INFO] ✅ kiang完成！耗时: 12.3s | 电信IP: 0

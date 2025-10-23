@@ -1,0 +1,12 @@
+2025-10-23 11:04:39,894 [INFO] 🚀 kiang电信IPTV启动
+2025-10-23 11:04:39,894 [INFO] 📱 **手机UA** - 抓取kiang前4页电信IP
+2025-10-23 11:04:39,894 [INFO] 📄 kiang第 1/4 页
+2025-10-23 11:04:42,255 [ERROR] ❌ kiang第1页失败：403 Client Error: Forbidden for url: https://tonkiang.us/iptvmulticast.php?page=1&iphone16=&code=
+2025-10-23 11:04:42,255 [INFO] 📄 kiang第 2/4 页
+2025-10-23 11:04:44,321 [ERROR] ❌ kiang第2页失败：403 Client Error: Forbidden for url: https://tonkiang.us/iptvmulticast.php?page=2&iphone16=&code=
+2025-10-23 11:04:44,322 [INFO] 📄 kiang第 3/4 页
+2025-10-23 11:04:46,393 [ERROR] ❌ kiang第3页失败：403 Client Error: Forbidden for url: https://tonkiang.us/iptvmulticast.php?page=3&iphone16=&code=
+2025-10-23 11:04:46,393 [INFO] 📄 kiang第 4/4 页
+2025-10-23 11:04:48,470 [ERROR] ❌ kiang第4页失败：403 Client Error: Forbidden for url: https://tonkiang.us/iptvmulticast.php?page=4&iphone16=&code=
+2025-10-23 11:04:48,471 [INFO] 🎉 **kiang总计**：0个电信IP
+2025-10-23 11:04:48,471 [INFO] ✅ kiang完成！耗时: 8.6s | 电信IP: 0

@@ -17,14 +17,19 @@ jobs:
       with:
         python-version: '3.11'
         
-    - name: 📦 Install Dependencies
+    # ✅ 修复：完整安装所有依赖
+    - name: 📦 Install ALL Dependencies
       run: |
         pip install --upgrade pip
-        pip install requests beautifulsoup4 lxml
+        pip install requests beautifulsoup4 lxml schedule
         
+    # ✅ 删除FFmpeg（脚本不使用）
+    
+    # ✅ 运行脚本
     - name: 🚀 Run Kiang IPTV Scraper
       run: python kiang_iptv_scraper.py
       
+    # ✅ 推送
     - name: 📤 Commit & Push
       run: |
         git config user.name "Kiang-Bot"

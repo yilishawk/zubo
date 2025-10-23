@@ -2,8 +2,8 @@ import requests
 import re
 import os
 from urllib.parse import urlparse
+from datetime import datetime
 
-# 四个直播源地址
 URLS = [
     "https://fy.188766.xyz/?ip=&bconly=true&mima=mianfeidehaimaiqian&json=true",
     "https://txt.gt.tc/users/HKTV.txt?i=1",
@@ -11,14 +11,19 @@ URLS = [
     "https://raw.githubusercontent.com/develop202/migu_video/main/interface.txt",
 ]
 
-# 频道名映射清洗规则
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/125.0 Safari/537.36",
+    "Referer": "https://www.google.com",
+    "Accept": "*/*",
+}
+
 def normalize_name(name):
     name = name.strip().upper()
     name = re.sub(r"[^A-Z0-9]", "", name)
-    # 特殊映射
-    name = name.replace("CCTV", "CCTV")
     if name.startswith("CCTV"):
-        name = "cctv" + re.sub(r"\D", "", name.replace("CCTV", ""))  # CCTV1综合 → cctv1
+        name = "cctv" + re.sub(r"\D", "", name.replace("CCTV", ""))
     else:
         name = name.lower()
     return name
@@ -26,52 +31,48 @@ def normalize_name(name):
 def fetch_url(url):
     print(f"📡 Fetching: {url}")
     try:
-        r = requests.get(url, timeout=20)
+        r = requests.get(url, headers=HEADERS, timeout=25)
         r.raise_for_status()
-        text = r.text
-        return text
+        return r.text
     except Exception as e:
         print(f"❌ Failed: {url} ({e})")
         return ""
 
 def parse_m3u(text):
-    """解析M3U或TXT格式"""
     lines = [l.strip() for l in text.splitlines() if l.strip()]
     result = []
     name = None
     for line in lines:
         if line.startswith("#EXTINF:"):
-            match = re.search(r",(.+)", line)
-            if match:
-                name = match.group(1)
+            m = re.search(r",(.+)", line)
+            if m:
+                name = m.group(1)
         elif line.startswith("http"):
             if name:
                 result.append((name, line))
                 name = None
             else:
-                # 有些TXT格式直接就是链接+名字
                 m = re.search(r"(CCTV[ -]?\d+.*)", line, re.I)
                 cname = m.group(1) if m else "unknown"
                 result.append((cname, line))
     return result
 
 def domain_available(urls):
-    """只检测一个域名"""
     checked = {}
     valid = []
-    for _, link in urls:
+    for cname, link in urls:
         domain = urlparse(link).netloc
         if domain in checked:
             if checked[domain]:
-                valid.append((_, link))
+                valid.append((cname, link))
             continue
         try:
-            resp = requests.head(link, timeout=5)
+            resp = requests.head(link, headers=HEADERS, timeout=5)
             ok = resp.status_code < 400
             checked[domain] = ok
             if ok:
                 print(f"✅ Domain OK: {domain}")
-                valid.append((_, link))
+                valid.append((cname, link))
             else:
                 print(f"⚠️ Domain Bad: {domain}")
         except Exception:
@@ -86,28 +87,22 @@ def main():
         if text:
             all_channels += parse_m3u(text)
 
-    # 标准化频道名
-    normalized = []
-    for name, link in all_channels:
-        normalized.append((normalize_name(name), link))
-
-    # 测试域名并过滤
+    normalized = [(normalize_name(n), l) for n, l in all_channels]
     filtered = domain_available(normalized)
 
-    # 按频道归类
     merged = {}
     for cname, link in filtered:
         merged.setdefault(cname, []).append(link)
 
-    # 写入txt
     with open("merged.txt", "w", encoding="utf-8") as f:
+        f.write(f"# Auto generated IPTV list\n")
+        f.write(f"# Updated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n")
         for cname, links in merged.items():
             for link in links:
                 f.write(f"{cname},{link}\n")
 
     print(f"✅ Merged {len(merged)} channels saved to merged.txt")
 
-    # GitHub Action: 推送到仓库
     os.system('git config --global user.name "github-actions[bot]"')
     os.system('git config --global user.email "github-actions[bot]@users.noreply.github.com"')
     os.system("git add merged.txt")

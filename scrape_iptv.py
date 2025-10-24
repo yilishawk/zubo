@@ -7,24 +7,15 @@ import sys
 
 def scrape_tonkiang():
     base_url = "https://tonkiang.us/iptvmulticast.php"
+    
+    # 使用更简单的headers
     headers = {
-        'authority': 'tonkiang.us',
-        'method': 'GET',
-        'scheme': 'https',
-        'sec-ch-ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'upgrade-insecure-requests': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'sec-fetch-site': 'none',
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-user': '?1',
-        'sec-fetch-dest': 'document',
-        'accept-encoding': 'gzip, deflate, br, zstd',
-        'accept-language': 'zh-CN,zh;q=0.9',
-        'cookie': 'IPTVGO=eb6c67cc; REFERER=Gameover; REFERER2=Game; REFERER1=Over; cf_clearance=6Ya_0Q7hnBoL_Chd.LgkmHyPwIyeO_OkJlREOEqGVDw-1761270271-1.2.1.1-GG1rDyX0BUYytKFPptvP1ukG6Ep4_be48QfvGVVGaRjoVSyOgvoKI1aSTQDYFkZ97r2YTlK5aWxS5hoJgvKldYzMzW.zOxSSNYvte471UDvenZwAAuki2jrjocBA_RpQEoy.hvAeUjy_IYyQ_qGh4.D_W6khDqthvx7EB2GGDCQQ47X6TLxrgTVTi_EbgtUwQ5KkpE7hQNBYaKpTHuic3L9FgX4tFtVTyjEDVQqlCP8',
-        'priority': 'u=0, i'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
     }
     
     # 创建tonkiang文件夹
@@ -36,70 +27,123 @@ def scrape_tonkiang():
     total_ips = 0
     
     print("🚀 开始抓取IPTV IP地址...")
+    print(f"目标URL: {base_url}")
     
     # 抓取4页数据
     for page in range(1, 5):
         print(f"\n📄 正在抓取第 {page} 页...")
         
-        params = {
-            'page': page,
-            'iphone16': '',
-            'code': ''
-        }
+        url = f"https://tonkiang.us/iptvmulticast.php?page={page}&iphone16=&code="
+        print(f"请求URL: {url}")
         
         try:
-            response = requests.get(base_url, params=params, headers=headers, timeout=10)
-            response.encoding = 'utf-8'
+            response = requests.get(url, headers=headers, timeout=15)
+            print(f"响应状态码: {response.status_code}")
             
             if response.status_code == 200:
+                # 保存原始HTML用于调试
+                with open(f"debug_page_{page}.html", "w", encoding="utf-8") as f:
+                    f.write(response.text)
+                print(f"✅ 第 {page} 页HTML已保存到 debug_page_{page}.html")
+                
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # 查找所有的result div
+                # 调试：查找所有包含IP的可能元素
+                print("🔍 搜索包含IP地址的元素...")
+                
+                # 方法1：查找所有包含IP地址的文本
+                ip_pattern = r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b'
+                all_text_ips = re.findall(ip_pattern, response.text)
+                print(f"文本中找到的IP数量: {len(all_text_ips)}")
+                if all_text_ips:
+                    print(f"示例IP: {all_text_ips[:5]}")
+                
+                # 方法2：查找特定的HTML结构
                 result_divs = soup.find_all('div', class_='result')
+                print(f"找到的result div数量: {len(result_divs)}")
+                
                 page_ip_count = 0
                 
-                for result in result_divs:
-                    # 提取IP地址
+                for i, result in enumerate(result_divs):
+                    print(f"  分析第 {i+1} 个result div...")
+                    
+                    # 提取IP地址 - 多种方法尝试
+                    ip = None
+                    province = "其他"
+                    
+                    # 方法1：从channel div中提取
                     channel_div = result.find('div', class_='channel')
                     if channel_div:
-                        a_tag = channel_div.find('a')
-                        if a_tag and a_tag.find('b'):
-                            ip_text = a_tag.find('b').get_text(strip=True)
-                            # 使用正则表达式提取IP地址
-                            ip_match = re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', ip_text)
-                            if ip_match:
-                                ip = ip_match.group()
-                                
-                                # 提取省份信息
-                                location_info = result.find('div', style='font-size: 11px; color: #aaa;')
-                                if location_info:
-                                    i_tag = location_info.find('i')
-                                    if i_tag:
-                                        location_text = i_tag.get_text(strip=True)
-                                        # 提取省份
-                                        province_match = re.search(r'([\u4e00\u9fa5]{2,6}省|[\uu4e00\u9fa5]{2,4}市|[\u4e00\u9fa5]{2,6}自治区)', location_text)
-                                        if province_match:
-                                            province = province_match.group(1)
-                                        else:
-                                            province = "其他"
-                                        
-                                        # 将IP添加到对应省份的列表中
-                                        if province not in all_ips_by_province:
-                                            all_ips_by_province[province] = []
-                                        all_ips_by_province[province].append(ip)
-                                        page_ip_count += 1
-                                        total_ips += 1
-                                        print(f"  ✅ 找到IP: {ip} - 省份: {province}")
+                        channel_text = channel_div.get_text()
+                        ip_matches = re.findall(ip_pattern, channel_text)
+                        if ip_matches:
+                            ip = ip_matches[0]
+                            print(f"    从channel找到IP: {ip}")
+                    
+                    # 方法2：从所有链接中提取
+                    if not ip:
+                        links = result.find_all('a')
+                        for link in links:
+                            href = link.get('href', '')
+                            link_text = link.get_text()
+                            # 从href中提取IP
+                            ip_matches = re.findall(ip_pattern, href)
+                            if ip_matches:
+                                ip = ip_matches[0]
+                                print(f"    从链接href找到IP: {ip}")
+                                break
+                            # 从链接文本中提取IP
+                            ip_matches = re.findall(ip_pattern, link_text)
+                            if ip_matches:
+                                ip = ip_matches[0]
+                                print(f"    从链接文本找到IP: {ip}")
+                                break
+                    
+                    # 方法3：从整个result div中提取
+                    if not ip:
+                        result_text = result.get_text()
+                        ip_matches = re.findall(ip_pattern, result_text)
+                        if ip_matches:
+                            ip = ip_matches[0]
+                            print(f"    从result文本找到IP: {ip}")
+                    
+                    if ip:
+                        # 提取省份信息
+                        location_divs = result.find_all('div', style=re.compile(r'font-size: 11px; color: #aaa;'))
+                        for location_div in location_divs:
+                            location_text = location_div.get_text()
+                            print(f"    位置文本: {location_text}")
+                            
+                            # 提取省份信息
+                            province_matches = re.findall(r'([\u4e00-\u9fa5]{2,6}省|[\u4e00-\u9fa5]{2,4}市|[\u4e00-\u9fa5]{2,6}自治区)', location_text)
+                            if province_matches:
+                                province = province_matches[0]
+                                print(f"    找到省份: {province}")
+                                break
+                        
+                        # 将IP添加到对应省份的列表中
+                        if province not in all_ips_by_province:
+                            all_ips_by_province[province] = []
+                        all_ips_by_province[province].append(ip)
+                        page_ip_count += 1
+                        total_ips += 1
+                        print(f"    ✅ 成功记录IP: {ip} - 省份: {province}")
+                    else:
+                        print(f"    ❌ 第 {i+1} 个result div中未找到IP")
                 
                 print(f"  📊 第 {page} 页共找到 {page_ip_count} 个IP")
             else:
                 print(f"  ❌ 第 {page} 页请求失败，状态码: {response.status_code}")
+                print(f"  响应内容前500字符: {response.text[:500]}")
             
             # 添加延迟避免请求过快
-            time.sleep(1)
+            time.sleep(2)
             
         except requests.RequestException as e:
             print(f"  ❌ 第 {page} 页请求异常: {e}")
+            continue
+        except Exception as e:
+            print(f"  ❌ 第 {page} 页处理异常: {e}")
             continue
     
     print(f"\n📈 抓取统计:")
@@ -126,15 +170,22 @@ def scrape_tonkiang():
     print(f"  创建文件数: {files_created}")
     print(f"  总唯一IP数: {total_ips}")
     
-    # 返回统计信息给工作流
+    # 如果没有找到任何IP，保存一个标记文件
+    if total_ips == 0:
+        with open("no_ips_found.txt", "w") as f:
+            f.write("本次抓取未找到任何IP地址\n")
+        print("❌ 警告: 未找到任何IP地址")
+    
     return total_ips, files_created
 
 if __name__ == "__main__":
     try:
         total_ips, files_created = scrape_tonkiang()
-        # 设置输出变量供GitHub Actions使用
-        print(f"::set-output name=total_ips::{total_ips}")
-        print(f"::set-output name=files_created::{files_created}")
+        # 退出码用于GitHub Actions判断
+        if total_ips == 0:
+            sys.exit(1)  # 没有找到IP，返回错误码
+        else:
+            sys.exit(0)  # 成功找到IP
     except Exception as e:
         print(f"❌ 脚本执行失败: {e}")
         sys.exit(1)

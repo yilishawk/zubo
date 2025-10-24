@@ -28,29 +28,60 @@ jobs:
     - name: 🕷️ Run scraping script
       id: scrape
       run: |
+        # 运行脚本并捕获退出码
         python scrape_iptv.py
-        echo "total_ips=$(python -c "import re; output = open('scrape_iptv.py').read(); match = re.search(r'总唯一IP数: (\d+)', output); print(match.group(1) if match else '0')")" >> $GITHUB_OUTPUT
-        echo "files_created=$(python -c "import re; output = open('scrape_iptv.py').read(); match = re.search(r'创建文件数: (\d+)', output); print(match.group(1) if match else '0')")" >> $GITHUB_OUTPUT
+        EXIT_CODE=$?
+        echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
         
-    - name: 📊 Display scraping results
+        # 统计IP数量
+        if [ -d "tonkiang" ]; then
+          TOTAL_IPS=0
+          for file in tonkiang/*.txt; do
+            if [ -f "$file" ]; then
+              COUNT=$(wc -l < "$file" 2>/dev/null || echo 0)
+              TOTAL_IPS=$((TOTAL_IPS + COUNT))
+            fi
+          done
+          echo "total_ips=$TOTAL_IPS" >> $GITHUB_OUTPUT
+          echo "files_created=$(ls -1 tonkiang/*.txt 2>/dev/null | wc -l)" >> $GITHUB_OUTPUT
+        else
+          echo "total_ips=0" >> $GITHUB_OUTPUT
+          echo "files_created=0" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: 📊 Display detailed results
       run: |
         echo "=========================================="
-        echo "📈 抓取结果统计"
+        echo "📈 详细抓取结果"
         echo "=========================================="
+        echo "脚本退出码: ${{ steps.scrape.outputs.exit_code }}"
         echo "总IP数量: ${{ steps.scrape.outputs.total_ips }}"
         echo "创建文件数: ${{ steps.scrape.outputs.files_created }}"
-        echo "=========================================="
         
-    - name: 📁 List generated files
-      run: |
-        echo "生成的文件列表:"
-        find tonkiang -name "*.txt" -type f | while read file; do
-          count=$(wc -l < "$file")
-          echo "  📄 $file ($count 个IP)"
-        done
+        if [ -d "tonkiang" ]; then
+          echo ""
+          echo "📁 生成的文件:"
+          find tonkiang -name "*.txt" -type f | while read file; do
+            count=$(wc -l < "$file" 2>/dev/null || echo 0)
+            echo "  📄 $file ($count 个IP)"
+          done
+        fi
         
-    - name: 💾 Commit and push changes
-      if: steps.scrape.outputs.total_ips != '0'
+        if [ -f "no_ips_found.txt" ]; then
+          echo ""
+          echo "❌ 没有找到任何IP地址"
+          cat no_ips_found.txt
+        fi
+        
+        # 显示调试文件
+        if ls debug_page_*.html 1> /dev/null 2>&1; then
+          echo ""
+          echo "🐛 调试文件:"
+          ls -la debug_page_*.html
+        fi
+        
+    - name: 💾 Commit and push if successful
+      if: steps.scrape.outputs.total_ips > 0
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
@@ -58,8 +89,20 @@ jobs:
         git commit -m "🤖 Auto-update: 抓取 ${{ steps.scrape.outputs.total_ips }} 个IP，创建 ${{ steps.scrape.outputs.files_created }} 个文件 [$(date +'%Y-%m-%d %H:%M')]"
         git push
         
-    - name: ℹ️ No changes info
-      if: steps.scrape.outputs.total_ips == '0'
+    - name: 🧹 Clean up debug files
+      if: always()
       run: |
-        echo "❌ 本次抓取没有找到任何IP地址，可能是网站结构变化或请求失败"
-        echo "请检查脚本和网络连接"
+        rm -f debug_page_*.html no_ips_found.txt
+        
+    - name: ❌ Fail if no IPs found
+      if: steps.scrape.outputs.total_ips == 0
+      run: |
+        echo "❌ 本次抓取没有找到任何IP地址"
+        echo "可能的原因:"
+        echo "1. 网站结构发生变化"
+        echo "2. 请求被阻止(Cloudflare等)"
+        echo "3. 网络连接问题"
+        echo "4. 解析逻辑需要更新"
+        echo ""
+        echo "请检查GitHub Actions日志中的详细调试信息"
+        exit 1

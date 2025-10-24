@@ -4,17 +4,24 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 2 * * *'
+  push:
+    paths:
+      - 'scrape_iptv.py'
+      - '.github/workflows/scrape-iptv.yml'
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+    timeout-minutes: 30
+
     steps:
     - name: 🗂️ Checkout repository
       uses: actions/checkout@v4
-      
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
     - name: 🐍 Set up Python
       uses: actions/setup-python@v4
       with:
@@ -23,70 +30,140 @@ jobs:
     - name: 📦 Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install requests beautifulsoup4 lxml cloudscraper
+        pip install requests beautifulsoup4 lxml
+        echo "✅ 依赖安装完成"
         
     - name: 🕷️ Run scraping script
       id: scrape
       run: |
-        # 运行脚本
+        echo "开始执行抓取脚本..."
         python scrape_iptv.py
         EXIT_CODE=$?
         echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+        echo "脚本执行完成，退出码: $EXIT_CODE"
         
         # 统计结果
         if [ -d "tonkiang" ]; then
           TOTAL_IPS=0
+          FILE_COUNT=0
+          
           for file in tonkiang/*.txt; do
             if [ -f "$file" ]; then
               COUNT=$(wc -l < "$file" 2>/dev/null || echo 0)
               TOTAL_IPS=$((TOTAL_IPS + COUNT))
+              FILE_COUNT=$((FILE_COUNT + 1))
             fi
           done
+          
           echo "total_ips=$TOTAL_IPS" >> $GITHUB_OUTPUT
-          echo "files_created=$(ls -1 tonkiang/*.txt 2>/dev/null | wc -l)" >> $GITHUB_OUTPUT
+          echo "files_created=$FILE_COUNT" >> $GITHUB_OUTPUT
+          echo "找到 $TOTAL_IPS 个IP，创建 $FILE_COUNT 个文件"
         else
           echo "total_ips=0" >> $GITHUB_OUTPUT
           echo "files_created=0" >> $GITHUB_OUTPUT
+          echo "未找到任何IP"
         fi
         
-    - name: 📊 Display results
+    - name: 📊 Display detailed results
       run: |
         echo "=========================================="
-        echo "📈 抓取结果"
+        echo "📈 详细抓取结果"
         echo "=========================================="
         echo "脚本退出码: ${{ steps.scrape.outputs.exit_code }}"
         echo "总IP数量: ${{ steps.scrape.outputs.total_ips }}"
         echo "创建文件数: ${{ steps.scrape.outputs.files_created }}"
+        echo ""
         
-        if [ -d "tonkiang" ] && [ "${{ steps.scrape.outputs.total_ips }}" -gt 0 ]; then
-          echo ""
-          echo "📁 生成的文件:"
+        # 显示生成的文件
+        if [ -d "tonkiang" ]; then
+          echo "📁 生成的文件列表:"
           find tonkiang -name "*.txt" -type f | while read file; do
             count=$(wc -l < "$file" 2>/dev/null || echo 0)
-            echo "  📄 $file ($count 个IP)"
+            filename=$(basename "$file")
+            echo "  📄 $filename ($count 个IP)"
           done
+        else
+          echo "❌ tonkiang 目录不存在"
         fi
+        
+        # 显示调试文件
+        if ls page_*_debug.html 1> /dev/null 2>&1; then
+          echo ""
+          echo "🐛 调试文件:"
+          ls -la page_*_debug.html
+        fi
+        
+        echo ""
+        echo "⏰ 工作流执行时间: $(date)"
         
     - name: 💾 Commit and push if successful
       if: steps.scrape.outputs.total_ips > 0
       run: |
+        echo "准备提交更改..."
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add -A
-        git commit -m "🤖 Auto-update: 抓取 ${{ steps.scrape.outputs.total_ips }} 个IP，创建 ${{ steps.scrape.outputs.files_created }} 个文件 [$(date +'%Y-%m-%d %H:%M')]"
-        git push
+        git status
+        
+        # 检查是否有更改
+        if git diff-index --quiet HEAD --; then
+          echo "没有更改需要提交"
+        else
+          git commit -m "🤖 Auto-update: 抓取 ${{ steps.scrape.outputs.total_ips }} 个IP，创建 ${{ steps.scrape.outputs.files_created }} 个文件 [$(date +'%Y-%m-%d %H:%M')]"
+          echo "提交完成，准备推送..."
+          git push
+          echo "✅ 更改已推送到仓库"
+        fi
+        
+    - name: 🧹 Clean up debug files
+      if: always()
+      run: |
+        echo "清理调试文件..."
+        rm -f page_*_debug.html SCRAPE_FAILED.txt
+        echo "✅ 调试文件清理完成"
+        
+    - name: 📝 Create summary
+      if: always()
+      run: |
+        echo "## IPTV抓取结果" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**执行时间:** $(date)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 抓取统计" >> $GITHUB_STEP_SUMMARY
+        echo "- **总IP数量:** ${{ steps.scrape.outputs.total_ips }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **创建文件数:** ${{ steps.scrape.outputs.files_created }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **脚本退出码:** ${{ steps.scrape.outputs.exit_code }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.scrape.outputs.total_ips }}" -gt 0 ]; then
+          echo "✅ **状态:** 抓取成功" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **状态:** 抓取失败" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**可能的原因:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. 网站Cloudflare防护" >> $GITHUB_STEP_SUMMARY
+          echo "2. 网络连接问题" >> $GITHUB_STEP_SUMMARY
+          echo "3. 网站结构变化" >> $GITHUB_STEP_SUMMARY
+        fi
         
     - name: ❌ Fail if no IPs found
       if: steps.scrape.outputs.total_ips == 0
       run: |
+        echo "=========================================="
         echo "❌ 本次抓取没有找到任何IP地址"
-        echo "可能的原因:"
-        echo "1. 网站Cloudflare防护太强"
-        echo "2. GitHub Actions IP被封锁"
-        echo "3. 网站结构发生变化"
+        echo "=========================================="
         echo ""
-        echo "建议尝试:"
-        echo "1. 更换其他IPTV网站"
-        echo "2. 使用本地运行测试"
-        echo "3. 添加代理服务器"
+        echo "问题分析:"
+        echo "1. 🔒 网站可能有强大的Cloudflare防护"
+        echo "2. 🌐 GitHub Actions的IP可能被封锁"
+        echo "3. 🏗️ 网站HTML结构可能已发生变化"
+        echo "4. ⚡ 网络连接或超时问题"
+        echo ""
+        echo "建议解决方案:"
+        echo "1. 尝试在其他环境运行（如本地机器）"
+        echo "2. 使用代理服务器"
+        echo "3. 更换其他IPTV数据源"
+        echo "4. 联系网站管理员获取API"
+        echo ""
+        echo "详细日志请查看上面的步骤输出"
         exit 1

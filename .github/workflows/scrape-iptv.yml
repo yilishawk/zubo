@@ -1,50 +1,65 @@
 name: Scrape IPTV IPs
 
 on:
-  workflow_dispatch:  # 手动触发
+  workflow_dispatch:
   schedule:
-    # 每天凌晨2点自动运行 (UTC时间)
     - cron: '0 2 * * *'
-  push:
-    paths:
-      - 'scrape_iptv.py'
-      - '.github/workflows/scrape-iptv.yml'
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
     steps:
-    - name: Checkout repository
+    - name: 🗂️ Checkout repository
       uses: actions/checkout@v4
       
-    - name: Set up Python
+    - name: 🐍 Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
         
-    - name: Install dependencies
+    - name: 📦 Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install requests beautifulsoup4 lxml
         
-    - name: Run scraping script
-      run: python scrape_iptv.py
-      
-    - name: Check for changes
-      id: git-check
+    - name: 🕷️ Run scraping script
+      id: scrape
+      run: |
+        python scrape_iptv.py
+        echo "total_ips=$(python -c "import re; output = open('scrape_iptv.py').read(); match = re.search(r'总唯一IP数: (\d+)', output); print(match.group(1) if match else '0')")" >> $GITHUB_OUTPUT
+        echo "files_created=$(python -c "import re; output = open('scrape_iptv.py').read(); match = re.search(r'创建文件数: (\d+)', output); print(match.group(1) if match else '0')")" >> $GITHUB_OUTPUT
+        
+    - name: 📊 Display scraping results
+      run: |
+        echo "=========================================="
+        echo "📈 抓取结果统计"
+        echo "=========================================="
+        echo "总IP数量: ${{ steps.scrape.outputs.total_ips }}"
+        echo "创建文件数: ${{ steps.scrape.outputs.files_created }}"
+        echo "=========================================="
+        
+    - name: 📁 List generated files
+      run: |
+        echo "生成的文件列表:"
+        find tonkiang -name "*.txt" -type f | while read file; do
+          count=$(wc -l < "$file")
+          echo "  📄 $file ($count 个IP)"
+        done
+        
+    - name: 💾 Commit and push changes
+      if: steps.scrape.outputs.total_ips != '0'
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add -A
-        if git diff --staged --quiet; then
-          echo "changes=false" >> $GITHUB_OUTPUT
-        else
-          echo "changes=true" >> $GITHUB_OUTPUT
-        fi
-        
-    - name: Commit and push if changes
-      if: steps.git-check.outputs.changes == 'true'
-      run: |
-        git commit -m "Auto-update: IPTV IPs $(date +'%Y-%m-%d %H:%M:%S')"
+        git commit -m "🤖 Auto-update: 抓取 ${{ steps.scrape.outputs.total_ips }} 个IP，创建 ${{ steps.scrape.outputs.files_created }} 个文件 [$(date +'%Y-%m-%d %H:%M')]"
         git push
+        
+    - name: ℹ️ No changes info
+      if: steps.scrape.outputs.total_ips == '0'
+      run: |
+        echo "❌ 本次抓取没有找到任何IP地址，可能是网站结构变化或请求失败"
+        echo "请检查脚本和网络连接"

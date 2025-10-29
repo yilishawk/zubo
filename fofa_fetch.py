@@ -359,14 +359,7 @@ def third_stage():
                 seen.add(key)
                 valid_lines.append(f"{c},{u}${province_operator}")
 
-    beijing_now = datetime.now(timezone(timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
-    disclaimer_url = "https://kakaxi-1.asia/LOGO/Disclaimer.mp4"
-
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
-        f.write(f"更新时间: {beijing_now}（北京时间）\n\n")
-        f.write("更新时间,#genre#\n")
-        f.write(f"{beijing_now},{disclaimer_url}\n\n")
-
         for category, ch_list in CHANNEL_CATEGORIES.items():
             f.write(f"{category},#genre#\n")
             for ch in ch_list:
@@ -376,7 +369,7 @@ def third_stage():
                         f.write(line + "\n")
             f.write("\n")
 
-    print(f"🎯 IPTV.txt 生成完成（含更新时间），共 {len(valid_lines)} 条频道")
+    print(f"🎯 IPTV.txt 生成完成，共 {len(valid_lines)} 条频道")
 
 # ===============================
 # 文件推送  

@@ -1,0 +1,49 @@
+name: 更新 channels.txt
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # 每天北京时间 14:00 自动更新
+  workflow_dispatch:     # 支持手动触发
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 安装 jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: 下载并生成 channels.txt
+        run: |
+          cat > sources.txt << 'EOF'
+          https://bc.188766.xyz/?ip=&bconly=true&mima=mianfeidehaimaiqian&json=true
+          https://live.catvod.com/tv.m3u
+          EOF
+
+          > raw.txt
+
+          while IFS= read -r url; do
+            echo "正在处理: $url"
+            if echo "$url" | grep -q "json=true"; then
+              curl -fsL -m 20 "$url" 2>/dev/null | jq -r '.[]?.url // empty' >> raw.txt || true
+            else
+              curl -fsL -m 20 "$url" 2>/dev/null | grep -Eo '(http|https)://[^[:space:]]+' >> raw.txt || true
+            fi
+          done < sources.txt
+
+          # 过滤视频地址 + 去重
+          grep -Ei '\.(m3u8|ts|mp4|flv|mkv)($|\?)' raw.txt | \
+          grep -Ev '\.(png|jpg|css|js|xml|html)' | \
+          sort -u > channels.txt
+
+          echo "共 $(wc -l < channels.txt) 条有效地址"
+
+      - name: 提交 channels.txt
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add channels.txt
+          git commit -m "Auto update channels.txt - $(date +%F)" || exit 0
+          git push

@@ -250,7 +250,7 @@ def second_stage():
         return
 
     combined_lines = []
-    # 确保 rtp 目录存在
+
     if not os.path.exists(RTP_DIR):
         print("⚠️ rtp 目录不存在，无法进行第二阶段组合，跳过")
         return
@@ -258,10 +258,11 @@ def second_stage():
     for ip_file in os.listdir(IP_DIR):
         if not ip_file.endswith(".txt"):
             continue
+
         ip_path = os.path.join(IP_DIR, ip_file)
         rtp_path = os.path.join(RTP_DIR, ip_file)
+
         if not os.path.exists(rtp_path):
-            # 没有对应的 rtp 文件则跳过
             continue
 
         try:
@@ -269,7 +270,7 @@ def second_stage():
                 ip_lines = [x.strip() for x in f1 if x.strip()]
                 rtp_lines = [x.strip() for x in f2 if x.strip()]
         except Exception as e:
-            print(f"⚠️ 读取 {ip_path} 或 {rtp_path} 失败：{e}")
+            print(f"⚠️ 文件读取失败：{e}")
             continue
 
         if not ip_lines or not rtp_lines:
@@ -279,18 +280,20 @@ def second_stage():
             for rtp_line in rtp_lines:
                 if "," not in rtp_line:
                     continue
-                ch_name, rtp_url = rtp_line.split(",", 1)
-                if "rtp://" in rtp_url:
-                    rtp_part = rtp_url.split("rtp://", 1)[1]
-                else:
-                    rtp_part = rtp_url
-                combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_part}")
 
-    # 去重（按 URL 部分去重）
+                ch_name, rtp_url = rtp_line.split(",", 1)
+
+                if "rtp://" in rtp_url:
+                    part = rtp_url.split("rtp://", 1)[1]
+                    combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{part}")
+
+                elif "udp://" in rtp_url:
+                    part = rtp_url.split("udp://", 1)[1]
+                    combined_lines.append(f"{ch_name},http://{ip_port}/udp/{part}")
+
+    # 去重
     unique = {}
     for line in combined_lines:
-        if "," not in line:
-            continue
         url_part = line.split(",", 1)[1]
         if url_part not in unique:
             unique[url_part] = line
@@ -299,9 +302,10 @@ def second_stage():
         with open(ZUBO_FILE, "w", encoding="utf-8") as f:
             for line in unique.values():
                 f.write(line + "\n")
-        print(f"🎯 第二阶段完成，共 {len(unique)} 条有效 URL 写入 {ZUBO_FILE}")
+        print(f"🎯 第二阶段完成，写入 {len(unique)} 条记录")
     except Exception as e:
-        print(f"❌ 写 zubo.txt 失败：{e}")
+        print(f"❌ 写文件失败：{e}")
+
 
 # ===============================
 # 第三阶段

@@ -153,7 +153,6 @@ CHANNEL_MAPPING = {
 }#格式为"频道分类中的标准名": ["rtp/中的名字"],
 
 # ===============================
-# 计数逻辑（保留：记录运行次数，但不在 73 次时清空）
 def get_run_count():
     if os.path.exists(COUNTER_FILE):
         try:
@@ -215,10 +214,10 @@ def first_stage():
             print(f"⚠️ 解析 IP {ip_port} 出错：{e}")
             continue
 
-    # 更新运行计数（不做清空、不做重置）
+    # 更新运行计数
     count = get_run_count() + 1
     save_run_count(count)
-    mode = "a"   # 永远追加
+    mode = "a"
 
     for filename, ip_set in province_isp_dict.items():
         path = os.path.join(IP_DIR, filename)
@@ -234,7 +233,7 @@ def first_stage():
     return count
 
 # ===============================
-# 第二阶段（组合 ip 与 rtp 生成 zubo.txt）
+# 第二阶段
 def second_stage():
     print("🔔 第二阶段触发：生成 zubo.txt")
     if not os.path.exists(IP_DIR):
@@ -242,7 +241,7 @@ def second_stage():
         return
 
     combined_lines = []
-    # 确保 rtp 目录存在（若无程序按逻辑继续）
+    # 确保 rtp 目录存在
     if not os.path.exists(RTP_DIR):
         print("⚠️ rtp 目录不存在，无法进行第二阶段组合，跳过")
         return
@@ -272,12 +271,9 @@ def second_stage():
                 if "," not in rtp_line:
                     continue
                 ch_name, rtp_url = rtp_line.split(",", 1)
-                # rtp_url 例如 rtp://239.x.x.x:xxxx/...  -> 取 rtp 后半部分
-                # 保持原有组合形式： http://{ip_port}/rtp/{rtp_part}
                 if "rtp://" in rtp_url:
                     rtp_part = rtp_url.split("rtp://", 1)[1]
                 else:
-                    # 如果不是以 rtp:// 开头，则直接使用后半部分（保守处理）
                     rtp_part = rtp_url
                 combined_lines.append(f"{ch_name},http://{ip_port}/rtp/{rtp_part}")
 
@@ -299,7 +295,7 @@ def second_stage():
         print(f"❌ 写 zubo.txt 失败：{e}")
 
 # ===============================
-# 第三阶段（检测、生成 IPTV.txt，并写回可用 IP 到 ip/ 目录（覆盖））
+# 第三阶段
 def third_stage():
     print("🧩 第三阶段：多线程检测代表频道生成 IPTV.txt 并写回可用 IP 到 ip/目录（覆盖）")
 
@@ -356,7 +352,6 @@ def third_stage():
 
     # 选择代表频道并检测
     def detect_ip(ip_port, entries):
-        # 优先检测 CCTV1 代表频道
         rep_channels = [u for c, u in entries if c == "CCTV1"]
         if not rep_channels and entries:
             rep_channels = [entries[0][1]]
@@ -378,10 +373,9 @@ def third_stage():
 
     print(f"✅ 检测完成，可播放 IP 共 {len(playable_ips)} 个")
 
-    # 生成 valid_lines，并同时为写回 ip/ 目录准备 operator -> set(ip_port)
     valid_lines = []
     seen = set()
-    operator_playable_ips = {}  # operator -> set of ip_port
+    operator_playable_ips = {}
 
     for ip_port in playable_ips:
         operator = ip_info.get(ip_port, "未知")
@@ -392,13 +386,10 @@ def third_stage():
                 seen.add(key)
                 valid_lines.append(f"{c},{u}${operator}")
 
-                # 记录到 operator_playable_ips，用于覆盖写回文件
                 operator_playable_ips.setdefault(operator, set()).add(ip_port)
 
-    # 将可用 IP 覆盖写回对应的 ip/省份运营商.txt（覆盖整个文件）
     for operator, ip_set in operator_playable_ips.items():
         if operator == "未知":
-            # 如果 operator 未知，可选择跳过或写入到 ip/未知.txt
             target_file = os.path.join(IP_DIR, "未知.txt")
         else:
             target_file = os.path.join(IP_DIR, operator + ".txt")
@@ -458,7 +449,6 @@ if __name__ == "__main__":
 
     run_count = first_stage()
 
-    # 每 12 的倍数执行第2和第3阶段（包括第12次、第24次等）
     if run_count % 12 == 0:
         second_stage()
         third_stage()

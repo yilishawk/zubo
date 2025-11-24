@@ -169,17 +169,19 @@ def save_run_count(count):
         print(f"⚠️ 写计数文件失败：{e}")
 
 # ===============================
-# IP 运营商判断（保留你的规则）
-def get_isp(ip):
-    # 注意：这些正则是示例，你可以根据需要调整 IP 段规则
-    if re.match(r"^(1[0-9]{2}|2[0-3]{2}|42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+# 根据 ip-api 返回结果判断运营商
+def get_isp_from_api(data):
+    isp_raw = (data.get("isp") or "").lower()
+
+    if "telecom" in isp_raw or "ct" in isp_raw or "chinatelecom" in isp_raw:
         return "电信"
-    elif re.match(r"^(42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+    elif "unicom" in isp_raw or "cu" in isp_raw or "chinaunicom" in isp_raw:
         return "联通"
-    elif re.match(r"^(223|36|37|38|39|100|101|102|103|104|105|106|107|108|109|134|135|136|137|138|139|150|151|152|157|158|159|170|178|182|183|184|187|188|189)\.", ip):
+    elif "mobile" in isp_raw or "cm" in isp_raw or "chinamobile" in isp_raw:
         return "移动"
-    else:
-        return "未知"
+
+    return "未知"
+
 
 # ===============================
 # 第一阶段
@@ -187,6 +189,7 @@ def first_stage():
     os.makedirs(IP_DIR, exist_ok=True)
     all_ips = set()
 
+    # —— 采集 FOFA的 IP —— #
     for url, filename in FOFA_URLS.items():
         print(f"📡 正在爬取 {filename} ...")
         try:
@@ -197,32 +200,38 @@ def first_stage():
             print(f"❌ 爬取失败：{e}")
         time.sleep(3)
 
+    # —— 处理省份 + 运营商分类 —— #
     province_isp_dict = {}
+
     for ip_port in all_ips:
         try:
             ip = ip_port.split(":")[0]
+
             res = requests.get(f"http://ip-api.com/json/{ip}?lang=zh-CN", timeout=10)
             data = res.json()
+
             province = data.get("regionName", "未知")
-            isp = get_isp(ip)
+            isp = get_isp_from_api(data)
+
             if isp == "未知":
                 continue
+
             fname = f"{province}{isp}.txt"
             province_isp_dict.setdefault(fname, set()).add(ip_port)
+
         except Exception as e:
-            # 忽略单条 IP 出错，继续处理其余
             print(f"⚠️ 解析 IP {ip_port} 出错：{e}")
             continue
 
-    # 更新运行计数
+    # —— 更新计数 —— #
     count = get_run_count() + 1
     save_run_count(count)
-    mode = "a"
 
+    # —— IP 写入 —— #
     for filename, ip_set in province_isp_dict.items():
         path = os.path.join(IP_DIR, filename)
         try:
-            with open(path, mode, encoding="utf-8") as f:
+            with open(path, "a", encoding="utf-8") as f:
                 for ip_port in sorted(ip_set):
                     f.write(ip_port + "\n")
             print(f"{path} 已追加写入 {len(ip_set)} 个 IP")

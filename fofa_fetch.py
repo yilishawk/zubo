@@ -168,8 +168,8 @@ def save_run_count(count):
     except Exception as e:
         print(f"⚠️ 写计数文件失败：{e}")
 
+
 # ===============================
-# 根据 ip-api 返回结果判断运营商
 def get_isp_from_api(data):
     isp_raw = (data.get("isp") or "").lower()
 
@@ -183,13 +183,25 @@ def get_isp_from_api(data):
     return "未知"
 
 
+def get_isp_by_regex(ip):
+    if re.match(r"^(1[0-9]{2}|2[0-3]{2}|42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+        return "电信"
+
+    elif re.match(r"^(42|43|58|59|60|61|110|111|112|113|114|115|116|117|118|119|120|121|122|123|124|125|126|127|175|180|182|183|184|185|186|187|188|189|223)\.", ip):
+        return "联通"
+
+    elif re.match(r"^(223|36|37|38|39|100|101|102|103|104|105|106|107|108|109|134|135|136|137|138|139|150|151|152|157|158|159|170|178|182|183|184|187|188|189)\.", ip):
+        return "移动"
+
+    return "未知"
+
+
 # ===============================
 # 第一阶段
 def first_stage():
     os.makedirs(IP_DIR, exist_ok=True)
     all_ips = set()
 
-    # —— 采集 FOFA的 IP —— #
     for url, filename in FOFA_URLS.items():
         print(f"📡 正在爬取 {filename} ...")
         try:
@@ -200,7 +212,6 @@ def first_stage():
             print(f"❌ 爬取失败：{e}")
         time.sleep(3)
 
-    # —— 处理省份 + 运营商分类 —— #
     province_isp_dict = {}
 
     for ip_port in all_ips:
@@ -214,6 +225,9 @@ def first_stage():
             isp = get_isp_from_api(data)
 
             if isp == "未知":
+                isp = get_isp_by_regex(ip)
+
+            if isp == "未知":
                 continue
 
             fname = f"{province}{isp}.txt"
@@ -223,11 +237,9 @@ def first_stage():
             print(f"⚠️ 解析 IP {ip_port} 出错：{e}")
             continue
 
-    # —— 更新计数 —— #
     count = get_run_count() + 1
     save_run_count(count)
 
-    # —— IP 写入 —— #
     for filename, ip_set in province_isp_dict.items():
         path = os.path.join(IP_DIR, filename)
         try:
@@ -240,6 +252,7 @@ def first_stage():
 
     print(f"✅ 第一阶段完成，当前轮次：{count}")
     return count
+
 
 # ===============================
 # 第二阶段

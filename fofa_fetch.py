@@ -216,7 +216,20 @@ def first_stage():
 
     for ip_port in all_ips:
         try:
-            ip = ip_port.split(":")[0]
+            host = ip_port.split(":")[0]
+
+            is_ip = re.match(r"^\d{1,3}(\.\d{1,3}){3}$", host)
+
+            if not is_ip:
+                try:
+                    resolved_ip = socket.gethostbyname(host)
+                    print(f"🌐 域名解析成功: {host} → {resolved_ip}")
+                    ip = resolved_ip
+                except Exception:
+                    print(f"❌ 域名解析失败，跳过：{ip_port}")
+                    continue
+            else:
+                ip = host
 
             res = requests.get(f"http://ip-api.com/json/{ip}?lang=zh-CN", timeout=10)
             data = res.json()
@@ -228,13 +241,14 @@ def first_stage():
                 isp = get_isp_by_regex(ip)
 
             if isp == "未知":
+                print(f"⚠️ 无法判断运营商，跳过：{ip_port}")
                 continue
 
             fname = f"{province}{isp}.txt"
             province_isp_dict.setdefault(fname, set()).add(ip_port)
 
         except Exception as e:
-            print(f"⚠️ 解析 IP {ip_port} 出错：{e}")
+            print(f"⚠️ 解析 {ip_port} 出错：{e}")
             continue
 
     count = get_run_count() + 1

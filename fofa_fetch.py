@@ -432,6 +432,14 @@ def third_stage():
 
                 operator_playable_ips.setdefault(operator, set()).add(ip_port)
 
+    def is_domain(url):
+        host = url.split("://")[1].split("/")[0]
+        return not re.match(r"^\d+\.\d+\.\d+\.\d+$", host)
+
+    valid_lines.sort(
+        key=lambda line: 0 if is_domain(line.split(",")[1].split("$")[0]) else 1
+    )
+
     for operator, ip_set in operator_playable_ips.items():
         target_file = os.path.join(IP_DIR, operator + ".txt")
         try:

@@ -383,12 +383,16 @@ def third_stage():
         for line in f:
             if "," not in line:
                 continue
+
             ch_name, url = line.strip().split(",", 1)
             ch_main = alias_map.get(ch_name, ch_name)
-            m = re.match(r"http://(\d+\.\d+\.\d+\.\d+:\d+)/", url)
-            if m:
-                ip_port = m.group(1)
-                groups.setdefault(ip_port, []).append((ch_main, url))
+            m = re.match(r"http://([^/]+)/", url)
+            if not m:
+                continue
+
+            ip_port = m.group(1)
+
+            groups.setdefault(ip_port, []).append((ch_main, url))
 
     # 选择代表频道并检测
     def detect_ip(ip_port, entries):
@@ -429,16 +433,12 @@ def third_stage():
                 operator_playable_ips.setdefault(operator, set()).add(ip_port)
 
     for operator, ip_set in operator_playable_ips.items():
-        if operator == "未知":
-            target_file = os.path.join(IP_DIR, "未知.txt")
-        else:
-            target_file = os.path.join(IP_DIR, operator + ".txt")
+        target_file = os.path.join(IP_DIR, operator + ".txt")
         try:
-            os.makedirs(IP_DIR, exist_ok=True)
             with open(target_file, "w", encoding="utf-8") as wf:
-                for ip in sorted(ip_set):
-                    wf.write(ip + "\n")
-            print(f"📥 覆盖写入 {target_file}，共 {len(ip_set)} 条可用 IP")
+                for ip_p in sorted(ip_set):
+                    wf.write(ip_p + "\n")
+            print(f"📥 写回 {target_file}，共 {len(ip_set)} 个可用地址")
         except Exception as e:
             print(f"❌ 写回 {target_file} 失败：{e}")
 

@@ -149,80 +149,45 @@ async def main():
         for url in urls:
             modified_urls = await generate_urls(url)
             all_urls.extend(modified_urls)
+
         # 检查可用 URL
-        tasks = [check_url(session,u,semaphore) for u in all_urls]
+        tasks = [check_url(session, u, semaphore) for u in all_urls]
         valid_urls = [r for r in await asyncio.gather(*tasks) if r]
 
         # 抓取节目单
-        tasks = [fetch_json(session,u,semaphore) for u in valid_urls]
+        tasks = [fetch_json(session, u, semaphore) for u in valid_urls]
         results = []
         for sublist in await asyncio.gather(*tasks):
             results.extend(sublist)
 
-    # ================== 测速 CCTV1 ==================
-    eventlet.monkey_patch()
-    task_queue = eventlet.Queue()
-    final_results = []
-    error_channels = []
+    # ================== 不测速版本 ==================
+    # final_results 直接使用抓取到的所有频道
+    # 添加默认速度为 0（方便后续按速度排序但不会影响顺序）
+    final_results = [(name, url, 0) for name, url in results]
 
-    def worker():
-        while True:
-            channel_name, channel_url = task_queue.get()
-            try:
-                ts_list = requests.get(channel_url,timeout=1).text.splitlines()
-                ts_file = [l for l in ts_list if not l.startswith('#')][0]
-                ts_url = '/'.join(channel_url.split('/')[:-1]) + '/' + ts_file
-                with eventlet.Timeout(5,False):
-                    start = datetime.datetime.now().timestamp()
-                    content = requests.get(ts_url,timeout=1).content
-                    end = datetime.datetime.now().timestamp()
-                    speed = len(content)/(end-start)/1024/1024
-                if content:
-                    final_results.append((channel_name,channel_url,speed))
-            except:
-                error_channels.append((channel_name,channel_url))
-            task_queue.task_done()
+    # ================== 分类 ==================
+    itv_dict = {cat: [] for cat in CHANNEL_CATEGORIES}
 
-    # 如果没有 CCTV1 则测试第一个频道
-    test_channel = "CCTV1"
-    cctv1_results = [r for r in results if r[0]==test_channel]
-    if not cctv1_results:
-        if results:
-            test_channel_name, test_channel_url = results[0]
-            cctv1_results = [(test_channel_name,test_channel_url,0)]
-        else:
-            print("没有可用频道，退出")
-            return
-
-    num_workers = 10
-    for _ in range(num_workers):
-        t = threading.Thread(target=worker,daemon=True)
-        t.start()
-    # 放入队列
-    for r in cctv1_results:
-        task_queue.put(r)
-    task_queue.join()
-
-    # ================== 分类排序 ==================
-    itv_dict = {cat:[] for cat in CHANNEL_CATEGORIES}
-    for name,url,speed in final_results:
-        for cat,channels in CHANNEL_CATEGORIES.items():
+    for name, url, speed in final_results:
+        for cat, channels in CHANNEL_CATEGORIES.items():
             if name in channels:
-                itv_dict[cat].append((name,url,speed))
+                itv_dict[cat].append((name, url, speed))
                 break
 
-    # 按 CHANNEL_CATEGORIES 顺序和速率排序
-    with open("itvlist.txt",'w',encoding='utf-8') as f:
+    # ================== 输出 itvlist.txt ==================
+    with open("itvlist.txt", 'w', encoding='utf-8') as f:
         for cat in CHANNEL_CATEGORIES:
             f.write(f"{cat},#genre#\n")
-            channel_counter = {}
+
             for ch in CHANNEL_CATEGORIES[cat]:
-                ch_items = [x for x in itv_dict[cat] if x[0]==ch]
-                ch_items.sort(key=lambda x:-x[2])
-                for i,item in enumerate(ch_items):
-                    if i>=RESULTS_PER_CHANNEL:
-                        break
-                    f.write(f"{item[0]},{item[1]}\n")
+                # 筛选该频道所有源
+                ch_items = [x for x in itv_dict[cat] if x[0] == ch]
+
+                # 因为 speed 都是 0，所以实际就是按抓取顺序
+                ch_items = ch_items[:RESULTS_PER_CHANNEL]
+
+                for item in ch_items:
+                    f.write(f"{item[0]},{item[1]}\n"){item[1]}\n")
 
 if __name__=="__main__":
     asyncio.run(main())

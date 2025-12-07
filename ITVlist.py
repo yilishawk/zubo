@@ -5,6 +5,7 @@ import datetime
 import requests
 import os
 import threading
+from urllib.parse import urljoin
 
 URL_FILE = "https://raw.githubusercontent.com/kakaxi-1/zubo/main/ip_urls.txt"
 
@@ -136,13 +137,28 @@ def load_urls():
 
 async def generate_urls(url):
     modified_urls = []
-    ip_start = url.find("//")+2
+
+    ip_start = url.find("//") + 2
     ip_end = url.find(":", ip_start)
+
     base = url[:ip_start]
-    ip_prefix = url[ip_start:ip_end].rsplit('.',1)[0]
+    ip_prefix = url[ip_start:ip_end].rsplit('.', 1)[0]
     port = url[ip_end:]
-    for i in range(1,256):
-        modified_urls.append(f"{base}{ip_prefix}.{i}{port}/iptv/live/1000.json?key=txiptv")
+
+    json_paths = [
+        "/iptv/live/1000.json?key=txiptv",
+        "/iptv/live/1001.json?key=txiptv",
+        "/iptv/live/2000.json?key=txiptv",
+        "/iptv/live/2001.json?key=txiptv",
+        "/live/1000.json",
+        "/tv/live.json"
+    ]
+
+    for i in range(1, 256):
+        ip = f"{base}{ip_prefix}.{i}{port}"
+        for path in json_paths:
+            modified_urls.append(f"{ip}{path}")
+
     return modified_urls
 
 async def fetch_json(session, url, semaphore):
@@ -156,14 +172,16 @@ async def fetch_json(session, url, semaphore):
                     urlx = item.get('url')
                     if not name or not urlx or ',' in urlx:
                         continue
+
                     if not urlx.startswith("http"):
-                        base = url.split("/iptv")[0]
-                        urlx = base + urlx
+                        urlx = urljoin(url, urlx)
+
                     for std_name, aliases in CHANNEL_MAPPING.items():
                         if name in aliases:
                             name = std_name
                             break
-                    results.append((name,urlx))
+
+                    results.append((name, urlx))
                 return results
         except:
             return []

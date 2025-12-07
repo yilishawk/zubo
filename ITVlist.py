@@ -5,7 +5,6 @@ import datetime
 import requests
 import os
 import threading
-from urllib.parse import urlparse, urlunparse
 
 URL_FILE = "https://raw.githubusercontent.com/kakaxi-1/zubo/main/ip_urls.txt"
 
@@ -133,28 +132,14 @@ def load_urls():
         exit()
 
 async def generate_urls(url):
-    """智能解析原始 URL 并批量生成 B 段扫描地址"""
     modified_urls = []
-
-    parsed = urlparse(url)
-
-    scheme = parsed.scheme
-    original_host = parsed.hostname
-    port = f":{parsed.port}" if parsed.port else ""
-    path = parsed.path or "/"
-    query = f"?{parsed.query}" if parsed.query else ""
-
-    ip_prefix = ".".join(original_host.split(".")[:2])
-
-    for c in range(1, 256):
-        new_ip = f"{ip_prefix}.{c}.{original_host.split('.')[-1]}"
-
-        new_netloc = f"{new_ip}{port}"
-
-        new_url = urlunparse((scheme, new_netloc, path, "", query.lstrip("?"), ""))
-
-        modified_urls.append(new_url)
-
+    ip_start = url.find("//")+2
+    ip_end = url.find(":", ip_start)
+    base = url[:ip_start]
+    ip_prefix = url[ip_start:ip_end].rsplit('.',1)[0]
+    port = url[ip_end:]
+    for i in range(1,256):
+        modified_urls.append(f"{base}{ip_prefix}.{i}{port}/iptv/live/1000.json?key=txiptv")
     return modified_urls
 
 async def fetch_json(session, url, semaphore):

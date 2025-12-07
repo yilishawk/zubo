@@ -136,15 +136,17 @@ RESULTS_PER_CHANNEL = 10
 # ==============================================
 
 def load_urls():
-    """从 source_urls.txt 加载源地址"""
-    if not os.path.exists(URL_FILE):
-        print(f"❌ 未找到 {URL_FILE} 文件！请创建并加入 IPTV IP 段列表")
+    """从 GitHub 下载 IPTV IP 段列表"""
+    import requests
+    try:
+        resp = requests.get(URL_FILE, timeout=5)
+        resp.raise_for_status()
+        urls = [line.strip() for line in resp.text.splitlines() if line.strip()]
+        print(f"📡 已加载 {len(urls)} 个基础 URL")
+        return urls
+    except Exception as e:
+        print(f"❌ 下载 {URL_FILE} 失败: {e}")
         exit()
-
-    with open(URL_FILE, "r", encoding="utf-8") as f:
-        urls = [line.strip() for line in f if line.strip()]
-    print(f"📡 已加载 {len(urls)} 个基础 URL")
-    return urls
 
 async def generate_urls(url):
     modified_urls = []

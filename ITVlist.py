@@ -267,26 +267,27 @@ async def main():
                 break
 
     # ================== 输出 itvlist ==================
-beijing_now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
+    beijing_now = datetime.datetime.now(
+        datetime.timezone(datetime.timedelta(hours=8))
+    ).strftime("%Y-%m-%d %H:%M:%S")
 
-disclaimer_url = "https://kakaxi-1.asia/LOGO/Disclaimer.mp4"
+    disclaimer_url = "https://kakaxi-1.asia/LOGO/Disclaimer.mp4"
 
-with open("itvlist.txt", 'w', encoding='utf-8') as f:
-    f.write(f"更新时间: {beijing_now}（北京时间）\n\n")
+    with open("itvlist.txt", 'w', encoding='utf-8') as f:
+        f.write(f"更新时间: {beijing_now}（北京时间）\n\n")
 
-    f.write("更新时间,#genre#\n")
-    f.write(f"{beijing_now},{disclaimer_url}\n\n")
+        f.write("更新时间,#genre#\n")
+        f.write(f"{beijing_now},{disclaimer_url}\n\n")
 
-    for cat in CHANNEL_CATEGORIES:
-        f.write(f"{cat},#genre#\n")
+        for cat in CHANNEL_CATEGORIES:
+            f.write(f"{cat},#genre#\n")
 
-        for ch in CHANNEL_CATEGORIES[cat]:
-            ch_items = [x for x in itv_dict[cat] if x[0] == ch]
-            ch_items = ch_items[:RESULTS_PER_CHANNEL]
+            for ch in CHANNEL_CATEGORIES[cat]:
+                ch_items = [x for x in itv_dict[cat] if x[0] == ch]
+                ch_items = ch_items[:RESULTS_PER_CHANNEL]
 
-            for item in ch_items:
-                f.write(f"{item[0]},{item[1]}\n")
-
+                for item in ch_items:
+                    f.write(f"{item[0]},{item[1]}\n")
 
 if __name__ == "__main__":
     asyncio.run(main())

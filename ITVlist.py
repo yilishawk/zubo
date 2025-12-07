@@ -5,14 +5,14 @@ import datetime
 import requests
 import os
 import threading
+from urllib.parse import urlparse, urlunparse
 
-# ===================== 配置 =====================
 URL_FILE = "https://raw.githubusercontent.com/kakaxi-1/zubo/main/ip_urls.txt"
 
 CHANNEL_CATEGORIES = {
     "央视频道": [
         "CCTV1", "CCTV2", "CCTV3", "CCTV4", "CCTV4欧洲", "CCTV4美洲", "CCTV5", "CCTV5+", "CCTV6", "CCTV7",
-        "CCTV8", "CCTV9", "CCTV10", "CCTV11", "CCTV12", "CCTV13", "CCTV14", "CCTV15", "CCTV16", "CCTV17", "CCTV4K", "CCTV8K",
+        "CCTV8", "CCTV9", "CCTV10", "CCTV11", "CCTV12", "CCTV13", "CCTV14", "CCTV15", "CCTV16", "CCTV17",
         "兵器科技", "风云音乐", "风云足球", "风云剧场", "怀旧剧场", "第一剧场", "女性时尚", "世界地理", "央视台球", "高尔夫网球",
         "央视文化精品", "卫生健康", "电视指南", "中学生", "发现之旅", "书法频道", "国学频道", "环球奇观"
     ],
@@ -21,13 +21,13 @@ CHANNEL_CATEGORIES = {
         "河北卫视", "河南卫视", "湖北卫视", "江西卫视", "四川卫视", "重庆卫视", "贵州卫视", "云南卫视", "天津卫视", "安徽卫视",
         "山东卫视", "辽宁卫视", "黑龙江卫视", "吉林卫视", "内蒙古卫视", "宁夏卫视", "山西卫视", "陕西卫视", "甘肃卫视", "青海卫视",
         "新疆卫视", "西藏卫视", "三沙卫视", "兵团卫视", "延边卫视", "安多卫视", "康巴卫视", "农林卫视", "山东教育卫视",
-        "中国教育1台", "中国教育2台", "中国教育3台", "中国教育4台", "早期教育"
+        "中国教育1台", "中国教育2台", "中国教育3台", "中国教育4台"
     ],
     "数字频道": [
         "CHC动作电影", "CHC家庭影院", "CHC影迷电影", "淘电影", "淘精彩", "淘剧场", "淘4K", "淘娱乐", "淘BABY", "淘萌宠", "重温经典",
         "星空卫视", "CHANNEL[V]", "凤凰卫视中文台", "凤凰卫视资讯台", "凤凰卫视香港台", "凤凰卫视电影台", "求索纪录", "求索科学",
         "求索生活", "求索动物", "纪实人文", "金鹰纪实", "纪实科教", "睛彩青少", "睛彩竞技", "睛彩篮球", "睛彩广场舞", "魅力足球", "五星体育",
-        "劲爆体育", "快乐垂钓", "茶频道", "先锋乒羽", "天元围棋", "汽摩", "梨园频道", "文物宝库", "武术世界", "哒啵赛事", "哒啵电竞", "黑莓电影", "黑莓动画", 
+        "劲爆体育", "快乐垂钓", "茶频道", "先锋乒羽", "天元围棋", "汽摩", "梨园频道", "文物宝库", "武术世界",
         "乐游", "生活时尚", "都市剧场", "欢笑剧场", "游戏风云", "金色学堂", "动漫秀场", "新动漫", "卡酷少儿", "金鹰卡通", "优漫卡通", "哈哈炫动", "嘉佳卡通", 
         "中国交通", "中国天气"
     ],
@@ -74,7 +74,6 @@ CHANNEL_MAPPING = {
     "中国教育2台": ["CETV2", "中国教育二台", "中国教育2", "CETV-2 空中课堂", "CETV-2"],
     "中国教育3台": ["CETV3", "中国教育三台", "中国教育3", "CETV-3 教育服务", "CETV-3"],
     "中国教育4台": ["CETV4", "中国教育四台", "中国教育4", "CETV-4 职业教育", "CETV-4"],
-    "早期教育": ["中国教育5台", "中国教育五台", "CETV早期教育", "华电早期教育", "CETV 早期教育"],
     "东南卫视": ["福建东南"],
     "CHC影迷电影": ["CHC高清电影", "CHC-影迷电影", "影迷电影", "chc高清电影"],
     "淘电影": ["IPTV淘电影", "北京IPTV淘电影", "北京淘电影"],
@@ -116,11 +115,9 @@ CHANNEL_MAPPING = {
     "金鹰卡通": ["湖南金鹰卡通"],
     "中国交通": ["中国交通频道"],
     "中国天气": ["中国天气频道"],
-    # 其他可按需添加
 }
 
-RESULTS_PER_CHANNEL = 10
-# ==============================================
+RESULTS_PER_CHANNEL = 15
 
 def load_urls():
     """从 GitHub 下载 IPTV IP 段列表"""
@@ -136,20 +133,34 @@ def load_urls():
         exit()
 
 async def generate_urls(url):
+    """智能解析原始 URL 并批量生成 B 段扫描地址"""
     modified_urls = []
-    ip_start = url.find("//")+2
-    ip_end = url.find(":", ip_start)
-    base = url[:ip_start]
-    ip_prefix = url[ip_start:ip_end].rsplit('.',1)[0]
-    port = url[ip_end:]
-    for i in range(1,256):
-        modified_urls.append(f"{base}{ip_prefix}.{i}{port}/iptv/live/1000.json?key=txiptv")
+
+    parsed = urlparse(url)
+
+    scheme = parsed.scheme
+    original_host = parsed.hostname
+    port = f":{parsed.port}" if parsed.port else ""
+    path = parsed.path or "/"
+    query = f"?{parsed.query}" if parsed.query else ""
+
+    ip_prefix = ".".join(original_host.split(".")[:2])
+
+    for c in range(1, 256):
+        new_ip = f"{ip_prefix}.{c}.{original_host.split('.')[-1]}"
+
+        new_netloc = f"{new_ip}{port}"
+
+        new_url = urlunparse((scheme, new_netloc, path, "", query.lstrip("?"), ""))
+
+        modified_urls.append(new_url)
+
     return modified_urls
 
 async def fetch_json(session, url, semaphore):
     async with semaphore:
         try:
-            async with session.get(url, timeout=0.5) as resp:
+            async with session.get(url, timeout=0.8) as resp:
                 data = await resp.json()
                 results = []
                 for item in data.get('data', []):
@@ -180,7 +191,7 @@ async def check_url(session, url, semaphore):
 
 async def main():
     print("🚀 开始运行 ITVlist 脚本")
-    semaphore = asyncio.Semaphore(100)
+    semaphore = asyncio.Semaphore(150)
 
     urls = load_urls()
     
@@ -214,15 +225,33 @@ async def main():
         for name, url in results:
             print(f"  - {name}: {url}")
 
-    final_results = [(name, url, 0) for name, url in results]
+        final_results = [(name, url, 0) for name, url in results]
 
-    itv_dict = {cat: [] for cat in CHANNEL_CATEGORIES}
+        def is_valid_stream(url):
+            if url.startswith("rtp://") or url.startswith("udp://") or url.startswith("rtsp://"):
+                return False
+            if "239." in url:
+                return False
+            if url.startswith("http://16.") or url.startswith("http://10.") or url.startswith("http://192.168."):
+                return False
+            
+            valid_ext = (".m3u8", ".ts", ".flv", ".mp4", ".mkv")
+            return url.startswith("http") and any(ext in url for ext in valid_ext)
 
-    for name, url, speed in final_results:
-        for cat, channels in CHANNEL_CATEGORIES.items():
-            if name in channels:
-                itv_dict[cat].append((name, url, speed))
-                break
+        final_results = [
+            (name, url, speed)
+            for name, url, speed in final_results
+            if is_valid_stream(url)
+        ]
+
+        itv_dict = {cat: [] for cat in CHANNEL_CATEGORIES}
+
+        for name, url, speed in final_results:
+            for cat, channels in CHANNEL_CATEGORIES.items():
+                if name in channels:
+                    itv_dict[cat].append((name, url, speed))
+                    break
+
 
     for cat in CHANNEL_CATEGORIES:
         print(f"📦 分类《{cat}》找到 {len(itv_dict[cat])} 条频道")

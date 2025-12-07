@@ -211,6 +211,8 @@ async def main():
         valid_urls = [r for r in await asyncio.gather(*tasks) if r]
 
         print(f"✅ 可用 JSON 地址: {len(valid_urls)} 个")
+        for u in valid_urls:
+            print(f"  - {u}")
 
         print("📥 开始抓取节目单 JSON...")
         tasks = [fetch_json(session, u, semaphore) for u in valid_urls]
@@ -222,6 +224,8 @@ async def main():
             results.extend(sublist)
 
         print(f"📺 抓到频道总数: {len(results)} 条")
+        for name, url in results:
+            print(f"  - {name}: {url}")
 
     final_results = [(name, url, 0) for name, url in results]
 

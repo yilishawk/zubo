@@ -267,20 +267,25 @@ async def main():
                 break
 
     # ================== 输出 itvlist ==================
-    with open("itvlist.txt", 'w', encoding='utf-8') as f:
-        for cat in CHANNEL_CATEGORIES:
-            f.write(f"{cat},#genre#\n")
+beijing_now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
 
-            for ch in CHANNEL_CATEGORIES[cat]:
-                # 筛选出该频道所有源
-                ch_items = [x for x in itv_dict[cat] if x[0] == ch]
+disclaimer_url = "https://kakaxi-1.asia/LOGO/Disclaimer.mp4"
 
-                # 限制数量
-                ch_items = ch_items[:RESULTS_PER_CHANNEL]
+with open("itvlist.txt", 'w', encoding='utf-8') as f:
+    f.write(f"更新时间: {beijing_now}（北京时间）\n\n")
 
-                # 写入文件
-                for item in ch_items:
-                    f.write(f"{item[0]},{item[1]}\n")
+    f.write("更新时间,#genre#\n")
+    f.write(f"{beijing_now},{disclaimer_url}\n\n")
+
+    for cat in CHANNEL_CATEGORIES:
+        f.write(f"{cat},#genre#\n")
+
+        for ch in CHANNEL_CATEGORIES[cat]:
+            ch_items = [x for x in itv_dict[cat] if x[0] == ch]
+            ch_items = ch_items[:RESULTS_PER_CHANNEL]
+
+            for item in ch_items:
+                f.write(f"{item[0]},{item[1]}\n")
 
 
 if __name__ == "__main__":

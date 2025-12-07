@@ -160,9 +160,6 @@ async def main():
         for sublist in await asyncio.gather(*tasks):
             results.extend(sublist)
 
-    # ================== 不测速版本 ==================
-    # final_results 直接使用抓取到的所有频道
-    # 添加默认速度为 0（方便后续按速度排序但不会影响顺序）
     final_results = [(name, url, 0) for name, url in results]
 
     # ================== 分类 ==================
@@ -175,19 +172,17 @@ async def main():
                 break
 
     # ================== 输出 itvlist.txt ==================
-    with open("itvlist.txt", 'w', encoding='utf-8') as f:
-        for cat in CHANNEL_CATEGORIES:
-            f.write(f"{cat},#genre#\n")
+with open("itvlist.txt", 'w', encoding='utf-8') as f:
+    for cat in CHANNEL_CATEGORIES:
+        f.write(f"{cat},#genre#\n")
 
-            for ch in CHANNEL_CATEGORIES[cat]:
-                # 筛选该频道所有源
-                ch_items = [x for x in itv_dict[cat] if x[0] == ch]
+        for ch in CHANNEL_CATEGORIES[cat]:
+            ch_items = [x for x in itv_dict[cat] if x[0] == ch]
 
-                # 因为 speed 都是 0，所以实际就是按抓取顺序
-                ch_items = ch_items[:RESULTS_PER_CHANNEL]
+            ch_items = ch_items[:RESULTS_PER_CHANNEL]
 
-                for item in ch_items:
-                    f.write(f"{item[0]},{item[1]}\n"){item[1]}\n")
+            for item in ch_items:
+                f.write(f"{item[0]},{item[1]}\n")
 
 if __name__=="__main__":
     asyncio.run(main())

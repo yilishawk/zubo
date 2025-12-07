@@ -409,26 +409,26 @@ CHANNEL_CATEGORIES = {
 }
 
 CHANNEL_MAPPING = {
-    "CCTV1": ["CCTV-1", "CCTV-1 HD", "CCTV1 HD", "CCTV-1综合"],
-    "CCTV2": ["CCTV-2", "CCTV-2 HD", "CCTV2 HD", "CCTV-2财经"],
-    "CCTV3": ["CCTV-3", "CCTV-3 HD", "CCTV3 HD", "CCTV-3综艺"],
-    "CCTV4": ["CCTV-4", "CCTV-4 HD", "CCTV4 HD", "CCTV-4中文国际"],
-    "CCTV4欧洲": ["CCTV-4欧洲", "CCTV-4欧洲", "CCTV4欧洲 HD", "CCTV-4 欧洲", "CCTV-4中文国际欧洲", "CCTV4中文欧洲"],
-    "CCTV4美洲": ["CCTV-4美洲", "CCTV-4北美", "CCTV4美洲 HD", "CCTV-4 美洲", "CCTV-4中文国际美洲", "CCTV4中文美洲"],
-    "CCTV5": ["CCTV-5", "CCTV-5 HD", "CCTV5 HD", "CCTV-5体育"],
-    "CCTV5+": ["CCTV-5+", "CCTV-5+ HD", "CCTV5+ HD", "CCTV-5+体育赛事"],
-    "CCTV6": ["CCTV-6", "CCTV-6 HD", "CCTV6 HD", "CCTV-6电影"],
-    "CCTV7": ["CCTV-7", "CCTV-7 HD", "CCTV7 HD", "CCTV-7国防军事"],
-    "CCTV8": ["CCTV-8", "CCTV-8 HD", "CCTV8 HD", "CCTV-8电视剧"],
-    "CCTV9": ["CCTV-9", "CCTV-9 HD", "CCTV9 HD", "CCTV-9纪录"],
-    "CCTV10": ["CCTV-10", "CCTV-10 HD", "CCTV10 HD", "CCTV-10科教"],
-    "CCTV11": ["CCTV-11", "CCTV-11 HD", "CCTV11 HD", "CCTV-11戏曲"],
-    "CCTV12": ["CCTV-12", "CCTV-12 HD", "CCTV12 HD", "CCTV-12社会与法"],
-    "CCTV13": ["CCTV-13", "CCTV-13 HD", "CCTV13 HD", "CCTV-13新闻"],
-    "CCTV14": ["CCTV-14", "CCTV-14 HD", "CCTV14 HD", "CCTV-14少儿"],
-    "CCTV15": ["CCTV-15", "CCTV-15 HD", "CCTV15 HD", "CCTV-15音乐"],
-    "CCTV16": ["CCTV-16", "CCTV-16 HD", "CCTV-16 4K", "CCTV-16奥林匹克", "CCTV16 4K", "CCTV-16奥林匹克4K"],
-    "CCTV17": ["CCTV-17", "CCTV-17 HD", "CCTV17 HD", "CCTV-17农业农村"],
+    "CCTV1": ["CCTV-1", "CCTV-1 HD", "CCTV1 HD", "CCTV-1综合", "CCTV1HD", "cctv1HD", "CCTV-1HD", "cctv-1HD"],
+    "CCTV2": ["CCTV-2", "CCTV-2 HD", "CCTV2 HD", "CCTV-2财经", "CCTV2HD", "cctv2HD", "CCTV-2HD", "cctv-2HD"],
+    "CCTV3": ["CCTV-3", "CCTV-3 HD", "CCTV3 HD", "CCTV-3综艺", "CCTV3HD", "cctv3HD", "CCTV-3HD", "cctv-3HD"],
+    "CCTV4": ["CCTV-4", "CCTV-4 HD", "CCTV4 HD", "CCTV-4中文国际", "CCTV4HD", "cctv4HD", "CCTV-4HD", "cctv-4HD"],
+    "CCTV4欧洲": ["CCTV-4欧洲", "CCTV-4欧洲", "CCTV4欧洲 HD", "CCTV-4 欧洲", "CCTV-4中文国际欧洲", "CCTV4中文欧洲", "CCTV4欧洲HD", "cctv4欧洲HD", "CCTV-4欧洲HD", "cctv-4欧洲HD"],
+    "CCTV4美洲": ["CCTV-4美洲", "CCTV-4北美", "CCTV4美洲 HD", "CCTV-4 美洲", "CCTV-4中文国际美洲", "CCTV4中文美洲", "CCTV4美洲HD", "cctv4美洲HD", "CCTV-4美洲HD", "cctv-4美洲HD"],
+    "CCTV5": ["CCTV-5", "CCTV-5 HD", "CCTV5 HD", "CCTV-5体育", "CCTV5HD", "cctv5HD", "CCTV-5HD", "cctv-5HD"],
+    "CCTV5+": ["CCTV-5+", "CCTV-5+ HD", "CCTV5+ HD", "CCTV-5+体育赛事", "CCTV5+HD", "cctv5+HD", "CCTV-5+HD", "cctv-5+HD", "CCTV5plas"],
+    "CCTV6": ["CCTV-6", "CCTV-6 HD", "CCTV6 HD", "CCTV-6电影", "CCTV6HD", "cctv6HD", "CCTV-6HD", "cctv-6HD"],
+    "CCTV7": ["CCTV-7", "CCTV-7 HD", "CCTV7 HD", "CCTV-7国防军事", "CCTV7HD", "cctv7HD", "CCTV-7HD", "cctv-7HD"],
+    "CCTV8": ["CCTV-8", "CCTV-8 HD", "CCTV8 HD", "CCTV-8电视剧", "CCTV8HD", "cctv8HD", "CCTV-8HD", "cctv-8HD"],
+    "CCTV9": ["CCTV-9", "CCTV-9 HD", "CCTV9 HD", "CCTV-9纪录", "CCTV9HD", "cctv9HD", "CCTV-9HD", "cctv-9HD"],
+    "CCTV10": ["CCTV-10", "CCTV-10 HD", "CCTV10 HD", "CCTV-10科教", "CCTV10HD", "cctv10HD", "CCTV-10HD", "cctv-10HD"],
+    "CCTV11": ["CCTV-11", "CCTV-11 HD", "CCTV11 HD", "CCTV-11戏曲", "CCTV11HD", "cctv11HD", "CCTV-11HD", "cctv-11HD"],
+    "CCTV12": ["CCTV-12", "CCTV-12 HD", "CCTV12 HD", "CCTV-12社会与法", "CCTV12HD", "cctv12HD", "CCTV-12HD", "cctv-12HD"],
+    "CCTV13": ["CCTV-13", "CCTV-13 HD", "CCTV13 HD", "CCTV-13新闻", "CCTV13HD", "cctv13HD", "CCTV-13HD", "cctv-13HD"],
+    "CCTV14": ["CCTV-14", "CCTV-14 HD", "CCTV14 HD", "CCTV-14少儿", "CCTV14HD", "cctv14HD", "CCTV-14HD", "cctv-14HD"],
+    "CCTV15": ["CCTV-15", "CCTV-15 HD", "CCTV15 HD", "CCTV-15音乐", "CCTV15HD", "cctv15HD", "CCTV-15HD", "cctv-15HD"],
+    "CCTV16": ["CCTV-16", "CCTV-16 HD", "CCTV-16 4K", "CCTV-16奥林匹克", "CCTV16 4K", "CCTV-16奥林匹克4K", "CCTV16HD", "cctv16HD", "CCTV-16HD", "cctv-16HD"],
+    "CCTV17": ["CCTV-17", "CCTV-17 HD", "CCTV17 HD", "CCTV-17农业农村", "CCTV17HD", "cctv17HD", "CCTV-17HD", "cctv-17HD"],
     "CCTV4K": ["CCTV4K超高清", "CCTV-4K超高清", "CCTV-4K 超高清", "CCTV 4K"],
     "CCTV8K": ["CCTV8K超高清", "CCTV-8K超高清", "CCTV-8K 超高清", "CCTV 8K"],
     "兵器科技": ["CCTV-兵器科技", "CCTV兵器科技"],
@@ -510,7 +510,6 @@ CHANNEL_MAPPING = {
 RESULTS_PER_CHANNEL = 5  # 每个频道保留源数
 # ==============================================
 
-# 修改 URL，循环 C 段 1-255
 async def generate_urls(url):
     modified_urls = []
     ip_start = url.find("//")+2
@@ -536,7 +535,6 @@ async def fetch_json(session, url, semaphore):
                     if not urlx.startswith("http"):
                         base = url.split("/iptv")[0]
                         urlx = base + urlx
-                    # 映射标准名
                     for std_name, aliases in CHANNEL_MAPPING.items():
                         if name in aliases:
                             name = std_name
@@ -556,20 +554,34 @@ async def check_url(session, url, semaphore):
             return None
 
 async def main():
+    print("🚀 开始运行 ITVlist 脚本")
     semaphore = asyncio.Semaphore(100)
+
     async with aiohttp.ClientSession() as session:
+
         all_urls = []
         for url in urls:
             modified_urls = await generate_urls(url)
             all_urls.extend(modified_urls)
 
+        print(f"🔍 生成待扫描 URL 共: {len(all_urls)} 个")
+
+        print("⏳ 开始检测可用 JSON API...")
         tasks = [check_url(session, u, semaphore) for u in all_urls]
         valid_urls = [r for r in await asyncio.gather(*tasks) if r]
 
+        print(f"✅ 可用 JSON 地址: {len(valid_urls)} 个")
+
+        print("📥 开始抓取节目单 JSON...")
         tasks = [fetch_json(session, u, semaphore) for u in valid_urls]
+
         results = []
-        for sublist in await asyncio.gather(*tasks):
+        fetched = await asyncio.gather(*tasks)
+
+        for sublist in fetched:
             results.extend(sublist)
+
+        print(f"📺 抓到频道总数: {len(results)} 条")
 
     final_results = [(name, url, 0) for name, url in results]
 
@@ -581,6 +593,9 @@ async def main():
                 itv_dict[cat].append((name, url, speed))
                 break
 
+    for cat in CHANNEL_CATEGORIES:
+        print(f"📦 分类《{cat}》找到 {len(itv_dict[cat])} 条频道")
+
     beijing_now = datetime.datetime.now(
         datetime.timezone(datetime.timedelta(hours=8))
     ).strftime("%Y-%m-%d %H:%M:%S")
@@ -589,7 +604,6 @@ async def main():
 
     with open("itvlist.txt", 'w', encoding='utf-8') as f:
         f.write(f"更新时间: {beijing_now}（北京时间）\n\n")
-
         f.write("更新时间,#genre#\n")
         f.write(f"{beijing_now},{disclaimer_url}\n\n")
 
@@ -603,5 +617,8 @@ async def main():
                 for item in ch_items:
                     f.write(f"{item[0]},{item[1]}\n")
 
+    print("🎉 itvlist.txt 已生成完成！")
+
 if __name__ == "__main__":
     asyncio.run(main())
+

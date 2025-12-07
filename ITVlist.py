@@ -193,6 +193,8 @@ async def main():
     print("🚀 开始运行 ITVlist 脚本")
     semaphore = asyncio.Semaphore(100)
 
+    urls = load_urls()
+    
     async with aiohttp.ClientSession() as session:
 
         all_urls = []

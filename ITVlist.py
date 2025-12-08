@@ -146,13 +146,11 @@ async def generate_urls(url):
     port = url[ip_end:]
 
     json_paths = [
-        "/iptv/live/1000.json?key=txiptv",
-        "/iptv/live/1001.json?key=txiptv",
-        "/iptv/live/2000.json?key=txiptv",
-        "/iptv/live/2001.json?key=txiptv",
-        "/live/1000.json",
-        "/tv/live.json"
-    ]
+    "/iptv/live/1000.json?key=txiptv",
+    "/iptv/live/1001.json?key=txiptv",
+    "/iptv/live/2000.json?key=txiptv",
+    "/iptv/live/2001.json?key=txiptv"
+]
 
     for i in range(1, 256):
         ip = f"{base}{ip_prefix}.{i}{port}"

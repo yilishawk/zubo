@@ -162,7 +162,7 @@ async def generate_urls(url):
 async def fetch_json(session, url, semaphore):
     async with semaphore:
         try:
-            async with session.get(url, timeout=0.5) as resp:
+            async with session.get(url, timeout=1) as resp:
                 data = await resp.json()
                 results = []
                 for item in data.get('data', []):

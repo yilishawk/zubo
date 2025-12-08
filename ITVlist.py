@@ -120,13 +120,13 @@ CHANNEL_MAPPING = {
     "中国天气": ["中国天气频道"],
 }
 
-RESULTS_PER_CHANNEL = 15
+RESULTS_PER_CHANNEL = 20
 
 def load_urls():
     """从 GitHub 下载 IPTV IP 段列表"""
     import requests
     try:
-        resp = requests.get(URL_FILE, timeout=5)
+        resp = requests.get(URL_FILE, timeout=3)
         resp.raise_for_status()
         urls = [line.strip() for line in resp.text.splitlines() if line.strip()]
         print(f"📡 已加载 {len(urls)} 个基础 URL")
@@ -164,7 +164,7 @@ async def generate_urls(url):
 async def fetch_json(session, url, semaphore):
     async with semaphore:
         try:
-            async with session.get(url, timeout=0.8) as resp:
+            async with session.get(url, timeout=0.5) as resp:
                 data = await resp.json()
                 results = []
                 for item in data.get('data', []):
@@ -197,7 +197,7 @@ async def check_url(session, url, semaphore):
 
 async def main():
     print("🚀 开始运行 ITVlist 脚本")
-    semaphore = asyncio.Semaphore(150)
+    semaphore = asyncio.Semaphore(120)
 
     urls = load_urls()
     

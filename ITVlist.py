@@ -4,7 +4,6 @@ import re
 import datetime
 import requests
 import os
-import threading
 from urllib.parse import urljoin
 
 URL_FILE = "https://raw.githubusercontent.com/kakaxi-1/zubo/main/ip_urls.txt"
@@ -145,9 +144,10 @@ async def generate_urls(url):
     port = url[ip_end:]
 
     json_patterns = [
-        r"/iptv/live/\d+\.json\?key=[A-Za-z0-9]+",
-        r"/tv/live\.json"
+        r"/(iptv|tv|live)/.*?\.json(?:\?.*)?",
+        r"/.*?(live|channel|list).*?\.json(?:\?.*)?"
     ]
+
 
     for i in range(1, 256):
         ip = f"{base}{ip_prefix}.{i}{port}"
@@ -162,7 +162,7 @@ async def generate_urls(url):
 async def check_url(session, url, semaphore):
     async with semaphore:
         try:
-            async with session.get(url, timeout=0.5) as resp:
+            async with session.get(url, timeout=1) as resp:
                 if resp.status == 200:
                     return url
         except:
@@ -171,7 +171,7 @@ async def check_url(session, url, semaphore):
 async def fetch_json(session, url, semaphore):
     async with semaphore:
         try:
-            async with session.get(url, timeout=1) as resp:
+            async with session.get(url, timeout=1) as resp:#设置网络等待时间
                 data = await resp.json()
                 results = []
                 for item in data.get('data', []):
@@ -202,7 +202,7 @@ def is_valid_stream(url):
 
 async def main():
     print("🚀 开始运行 ITVlist 脚本")
-    semaphore = asyncio.Semaphore(120)
+    semaphore = asyncio.Semaphore(130)#设置并发
 
     urls = load_urls()
     
@@ -215,15 +215,22 @@ async def main():
 
         print("⏳ 开始检测可用 JSON API...")
         tasks = [check_url(session, u, semaphore) for u in all_urls]
-        valid_urls = [r for r in await asyncio.gather(*tasks) if r]
-        print(f"✅ 可用 JSON 地址: {len(valid_urls)} 个")
+        valid_urls = []
+        for fut in asyncio.as_completed(tasks):
+            r = await fut
+            if r:
+                print(f"✅ 可用 JSON 地址: {r}")
+                valid_urls.append(r)
 
-        print("📥 开始抓取节目单 JSON...")
+        print(f"📥 开始抓取节目单 JSON... 共 {len(valid_urls)} 个有效 JSON")
         tasks = [fetch_json(session, u, semaphore) for u in valid_urls]
         results = []
-        fetched = await asyncio.gather(*tasks)
-        for sublist in fetched:
-            results.extend(sublist)
+        for fut in asyncio.as_completed(tasks):
+            sublist = await fut
+            if sublist:
+                for name, url in sublist:
+                    print(f"📺 抓到频道: {name} -> {url}")
+                results.extend(sublist)
 
         print(f"📺 抓到频道总数: {len(results)} 条")
         final_results = [(name, url, 0) for name, url in results]

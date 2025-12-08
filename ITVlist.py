@@ -4,7 +4,6 @@ import re
 import datetime
 import requests
 import os
-import threading
 from urllib.parse import urljoin
 
 URL_FILE = "https://raw.githubusercontent.com/kakaxi-1/zubo/main/ip_urls.txt"
@@ -127,7 +126,7 @@ def load_urls():
     """从 GitHub 下载 IPTV IP 段列表"""
     import requests
     try:
-        resp = requests.get(URL_FILE, timeout=3)
+        resp = requests.get(URL_FILE, timeout=5)
         resp.raise_for_status()
         urls = [line.strip() for line in resp.text.splitlines() if line.strip()]
         print(f"📡 已加载 {len(urls)} 个基础 URL")
@@ -188,7 +187,7 @@ async def fetch_json(session, url, semaphore):
 async def check_url(session, url, semaphore):
     async with semaphore:
         try:
-            async with session.get(url, timeout=0.5) as resp:
+            async with session.get(url, timeout=1) as resp:
                 if resp.status == 200:
                     return url
         except:
@@ -196,7 +195,7 @@ async def check_url(session, url, semaphore):
 
 async def main():
     print("🚀 开始运行 ITVlist 脚本")
-    semaphore = asyncio.Semaphore(120)
+    semaphore = asyncio.Semaphore(150)
 
     urls = load_urls()
     

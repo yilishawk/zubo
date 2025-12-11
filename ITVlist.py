@@ -240,6 +240,8 @@ async def main():
                 return False
             if url.startswith("http://16.") or url.startswith("http://10.") or url.startswith("http://192.168."):
                 return False
+            if "/paiptv/" in url or "/00/SNM/" in url:
+                return False
             
             valid_ext = (".m3u8", ".ts", ".flv", ".mp4", ".mkv")
             return url.startswith("http") and any(ext in url for ext in valid_ext)

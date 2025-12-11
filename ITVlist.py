@@ -189,7 +189,7 @@ async def fetch_json(session, url, semaphore):
 async def check_url(session, url, semaphore):
     async with semaphore:
         try:
-            async with session.get(url, timeout=1) as resp:#           设置等待响应用时
+            async with session.get(url, timeout=1) as resp:#============================设置等待响应用时
                 if resp.status == 200:
                     return url
         except:
@@ -197,7 +197,7 @@ async def check_url(session, url, semaphore):
 
 async def main():
     print("🚀 开始运行 ITVlist 脚本")
-    semaphore = asyncio.Semaphore(150)#                              设置并发数量
+    semaphore = asyncio.Semaphore(150)#=================================================设置并发数量
 
     urls = load_urls()
     
@@ -233,6 +233,7 @@ async def main():
 
         final_results = [(name, url, 0) for name, url in results]
 
+#=============================================================================================筛选过滤
         def is_valid_stream(url):
             if url.startswith("rtp://") or url.startswith("udp://") or url.startswith("rtsp://"):
                 return False
@@ -240,7 +241,7 @@ async def main():
                 return False
             if url.startswith("http://16.") or url.startswith("http://10.") or url.startswith("http://192.168."):
                 return False
-            if "/paiptv/" in url or "/00/SNM/" in url:
+            if "/paiptv/" in url or "/00/SNM/" in url or "/00/CHANNEL" in url:
                 return False
             
             valid_ext = (".m3u8", ".ts", ".flv", ".mp4", ".mkv")

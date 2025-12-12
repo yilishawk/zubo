@@ -4,6 +4,7 @@ import re
 import datetime
 import requests
 import os
+import time
 from urllib.parse import urljoin
 
 URL_FILE = "https://raw.githubusercontent.com/kakaxi-1/zubo/main/ip_urls.txt"
@@ -154,7 +155,13 @@ async def generate_urls(url):
     "/iptv/live/1000.json?key=txiptv",
     "/iptv/live/1001.json?key=txiptv",
     "/iptv/live/2000.json?key=txiptv",
-    "/iptv/live/2001.json?key=txiptv"
+    "/iptv/live/2001.json?key=txiptv",
+    "/iptv/live/1000.json",
+    "/iptv/live/1001.json",
+    "/iptv/live/2000.json",
+    "/iptv/live/2001.json",
+    "/live/1000.json",
+    "/live/1001.json",
 ]
 
     for i in range(1, 256):
@@ -164,10 +171,19 @@ async def generate_urls(url):
 
     return modified_urls
 
+async def check_url(session, url, semaphore):
+    async with semaphore:
+        try:
+            async with session.get(url, timeout=1) as resp:#===========================JSON访问时间
+                if resp.status == 200:
+                    return url
+        except:
+            return None
+
 async def fetch_json(session, url, semaphore):
     async with semaphore:
         try:
-            async with session.get(url, timeout=1) as resp:
+            async with session.get(url, timeout=2) as resp:
                 data = await resp.json()
                 results = []
                 for item in data.get('data', []):
@@ -189,66 +205,57 @@ async def fetch_json(session, url, semaphore):
         except:
             return []
 
-async def check_url(session, url, semaphore):
+async def measure_speed(session, url, semaphore):
     async with semaphore:
+        start = time.time()
         try:
-            async with session.get(url, timeout=1) as resp:#============================设置等待响应用时
-                if resp.status in {200, 301, 302, 403}:
-                    return url
+            async with session.head(url, timeout=2) as resp:#===========================频道测速用时
+                if resp.status == 200:
+                    return int((time.time() - start) * 1000)
         except:
-            return None
+            return 999999
+
+def is_valid_stream(url):
+    if url.startswith(("rtp://", "udp://", "rtsp://")):
+        return False
+    if "239." in url:
+        return False
+    if url.startswith(("http://16.", "http://10.", "http://192.168.")):
+        return False
+    if "/paiptv/" in url or "/00/SNM/" in url or "/00/CHANNEL" in url:
+        return False
+    valid_ext = (".m3u8", ".ts", ".flv", ".mp4", ".mkv")
+    return url.startswith("http") and any(ext in url for ext in valid_ext)
 
 async def main():
     print("🚀 开始运行 ITVlist 脚本")
-    semaphore = asyncio.Semaphore(150)#=================================================设置并发数量
+    semaphore = asyncio.Semaphore(150)  # ==============================================并发限制
 
     urls = load_urls()
     
     async with aiohttp.ClientSession() as session:
-
         all_urls = []
         for url in urls:
             modified_urls = await generate_urls(url)
             all_urls.extend(modified_urls)
-
         print(f"🔍 生成待扫描 URL 共: {len(all_urls)} 个")
 
         print("⏳ 开始检测可用 JSON API...")
         tasks = [check_url(session, u, semaphore) for u in all_urls]
         valid_urls = [r for r in await asyncio.gather(*tasks) if r]
-
         print(f"✅ 可用 JSON 地址: {len(valid_urls)} 个")
         for u in valid_urls:
             print(f"  - {u}")
 
         print("📥 开始抓取节目单 JSON...")
         tasks = [fetch_json(session, u, semaphore) for u in valid_urls]
-
         results = []
         fetched = await asyncio.gather(*tasks)
-
         for sublist in fetched:
             results.extend(sublist)
-
         print(f"📺 抓到频道总数: {len(results)} 条")
-        for name, url in results:
-            print(f"  - {name}: {url}")
 
         final_results = [(name, url, 0) for name, url in results]
-
-#=============================================================================================筛选过滤
-        def is_valid_stream(url):
-            if url.startswith("rtp://") or url.startswith("udp://") or url.startswith("rtsp://"):
-                return False
-            if "239." in url:
-                return False
-            if url.startswith("http://16.") or url.startswith("http://10.") or url.startswith("http://192.168."):
-                return False
-            if "/paiptv/" in url or "/00/SNM/" in url or "/00/CHANNEL" in url:
-                return False
-            
-            valid_ext = (".m3u8", ".ts", ".flv", ".mp4", ".mkv")
-            return url.startswith("http") and any(ext in url for ext in valid_ext)
 
         final_results = [
             (name, url, speed)
@@ -256,41 +263,45 @@ async def main():
             if is_valid_stream(url)
         ]
 
-        itv_dict = {cat: [] for cat in CHANNEL_CATEGORIES}
+        print("🚀 开始测速频道源...")
+        speed_tasks = [measure_speed(session, url, semaphore) for (_, url, _) in final_results]
+        speeds = await asyncio.gather(*speed_tasks)
+        final_results = [
+            (name, url, speed)
+            for (name, url, _), speed in zip(final_results, speeds)
+        ]
 
+        final_results.sort(key=lambda x: x[2])
+
+        itv_dict = {cat: [] for cat in CHANNEL_CATEGORIES}
         for name, url, speed in final_results:
             for cat, channels in CHANNEL_CATEGORIES.items():
                 if name in channels:
                     itv_dict[cat].append((name, url, speed))
                     break
 
-
-    for cat in CHANNEL_CATEGORIES:
-        print(f"📦 分类《{cat}》找到 {len(itv_dict[cat])} 条频道")
-
-    beijing_now = datetime.datetime.now(
-        datetime.timezone(datetime.timedelta(hours=8))
-    ).strftime("%Y-%m-%d %H:%M:%S")
-
-    disclaimer_url = "https://kakaxi-1.asia/LOGO/Disclaimer.mp4"
-
-    with open("itvlist.txt", 'w', encoding='utf-8') as f:
-        f.write(f"更新时间: {beijing_now}（北京时间）\n\n")
-        f.write("更新时间,#genre#\n")
-        f.write(f"{beijing_now},{disclaimer_url}\n\n")
-
         for cat in CHANNEL_CATEGORIES:
-            f.write(f"{cat},#genre#\n")
+            print(f"📦 分类《{cat}》找到 {len(itv_dict[cat])} 条频道")
 
-            for ch in CHANNEL_CATEGORIES[cat]:
-                ch_items = [x for x in itv_dict[cat] if x[0] == ch]
-                ch_items = ch_items[:RESULTS_PER_CHANNEL]
+        beijing_now = datetime.datetime.now(
+            datetime.timezone(datetime.timedelta(hours=8))
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        disclaimer_url = "https://kakaxi-1.asia/LOGO/Disclaimer.mp4"
 
-                for item in ch_items:
-                    f.write(f"{item[0]},{item[1]}\n")
+        with open("itvlist.txt", 'w', encoding='utf-8') as f:
+            f.write(f"更新时间: {beijing_now}（北京时间）\n\n")
+            f.write("更新时间,#genre#\n")
+            f.write(f"{beijing_now},{disclaimer_url}\n\n")
 
-    print("🎉 itvlist.txt 已生成完成！")
+            for cat in CHANNEL_CATEGORIES:
+                f.write(f"{cat},#genre#\n")
+                for ch in CHANNEL_CATEGORIES[cat]:
+                    ch_items = [x for x in itv_dict[cat] if x[0] == ch]
+                    ch_items = ch_items[:RESULTS_PER_CHANNEL]
+                    for item in ch_items:
+                        f.write(f"{item[0]},{item[1]}\n")
+
+        print("🎉 itvlist.txt 已生成完成！")
 
 if __name__ == "__main__":
     asyncio.run(main())
-

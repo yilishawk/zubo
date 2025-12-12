@@ -192,7 +192,7 @@ async def fetch_json(session, url, semaphore):
 async def check_url(session, url, semaphore):
     async with semaphore:
         try:
-            async with session.get(url, timeout=1) as resp:#============================设置等待响应用时
+            async with session.get(url, timeout=2) as resp:#============================设置等待响应用时
                 if resp.status == 200:
                     return url
         except:
@@ -200,7 +200,7 @@ async def check_url(session, url, semaphore):
 
 async def main():
     print("🚀 开始运行 ITVlist 脚本")
-    semaphore = asyncio.Semaphore(150)#=================================================设置并发数量
+    semaphore = asyncio.Semaphore(80)#=================================================设置并发数量
 
     urls = load_urls()
     

@@ -154,10 +154,9 @@ async def generate_urls(url):
     json_paths = [
     "/iptv/live/1000.json?key=txiptv",
     "/iptv/live/1001.json?key=txiptv",
-    "/iptv/live/1000.json",
-    "/iptv/live/1001.json",
     "/live/1000.json",
-    "/live/1001.json",
+    "/live/channels.json",
+    "/iptv/live.json",
 ]
 
     for i in range(1, 256):
@@ -205,9 +204,11 @@ async def measure_speed(session, url, semaphore):
     async with semaphore:
         start = time.time()
         try:
-            async with session.head(url, timeout=2) as resp:#===========================频道测速用时
+            async with session.head(url, timeout=2) as resp:  # =======================频道测速用时
                 if resp.status == 200:
                     return int((time.time() - start) * 1000)
+                else:
+                    return 999999
         except:
             return 999999
 

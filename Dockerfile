@@ -4,7 +4,7 @@ WORKDIR /app
 
 # 安装依赖
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
 # 拷贝脚本
 COPY iptv_script.py ./
@@ -13,3 +13,4 @@ COPY iptv_script.py ./
 EXPOSE 9090
 
 CMD ["python", "iptv_script.py"]
+

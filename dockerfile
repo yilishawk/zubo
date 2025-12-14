@@ -1,15 +1,17 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
+
+COPY v101.py .
 
 RUN apt-get update && \
     apt-get install -y ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
-COPY v101.py .
+RUN pip install --no-cache-dir flask aiohttp
 
-RUN pip install --no-cache-dir aiohttp flask
-
-EXPOSE 5000
+ENV PYTHONUNBUFFERED=1 \
+    PORT=5000 \
+    UPDATE_INTERVAL=21600
 
 CMD ["python", "v101.py"]

@@ -1,13 +1,13 @@
-import asyncio
-import aiohttp
-import datetime
-import threading
 import os
-import time
-import subprocess
-from flask import Flask, send_file, Response
-from urllib.parse import urljoin
 import re
+import time
+import asyncio
+import threading
+import datetime
+import subprocess
+from urllib.parse import urljoin
+from flask import Flask, send_file, Response
+import aiohttp
 
 # ================= 配置 =================
 PORT = 5000
@@ -15,6 +15,8 @@ OUTPUT_FILE = "itvlist.txt"
 UPDATE_INTERVAL = 6 * 60 * 60  # 每 6 小时更新一次
 CONCURRENCY = 80
 RESULTS_PER_CHANNEL = 10
+FFPROBE_CONCURRENCY = 20
+RESULTS_PER_CHANNEL = 20
 
 BASE_URLS = [
     "http://182.207.218.1:999",
@@ -205,6 +207,7 @@ BASE_URLS = [
 
 JSON_PATHS = [
     "/iptv/live/1000.json?key=txiptv",
+    "/iptv/live/1001.json?key=txiptv",
 ]
 
 CHANNEL_CATEGORIES = {
@@ -328,7 +331,6 @@ def serve_list():
         return Response("节目单生成中，请稍候...\n", mimetype="text/plain")
     return send_file(OUTPUT_FILE, mimetype="text/plain")
 
-
 # ================= IPTV 逻辑 =================
 def is_valid_stream(url):
     if not url.startswith("http"):
@@ -336,7 +338,6 @@ def is_valid_stream(url):
     if any(bad in url for bad in ("239.", "/paiptv/", "/00/SNM/")):
         return False
     return any(ext in url for ext in (".m3u8", ".ts", ".flv", ".mp4"))
-
 
 async def generate_urls(base):
     ip_start = base.find("//") + 2
@@ -351,7 +352,6 @@ async def generate_urls(base):
             urls.append(f"{base_url}{prefix}.{i}{port}{path}")
     return urls
 
-
 async def check_json(session, url, sem):
     async with sem:
         try:
@@ -359,7 +359,6 @@ async def check_json(session, url, sem):
                 return url if r.status == 200 else None
         except:
             return None
-
 
 async def fetch_channels(session, url, sem):
     async with sem:
@@ -387,9 +386,6 @@ async def fetch_channels(session, url, sem):
         except:
             return []
 
-
-FFPROBE_CONCURRENCY = 20
-
 async def measure_playable(url, sem):
     async with sem:
         try:
@@ -402,7 +398,6 @@ async def measure_playable(url, sem):
         except:
             return None
 
-
 async def measure_all_playable(urls):
     sem = asyncio.Semaphore(FFPROBE_CONCURRENCY)
     tasks = [measure_playable(u, sem) for u in urls]
@@ -412,7 +407,6 @@ async def measure_all_playable(urls):
         if res:
             playable.append(res)
     return playable
-
 
 def write_itvlist(grouped):
     now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
@@ -428,59 +422,58 @@ def write_itvlist(grouped):
                 f.write(f"{name},{url}\n")
     os.replace(tmp_file, OUTPUT_FILE)
 
-
+# ================= 核心生成逻辑 =================
 async def generate_itvlist():
     sem = asyncio.Semaphore(CONCURRENCY)
     async with aiohttp.ClientSession() as session:
+        # 1. 生成所有 URL
         all_urls = []
         for base in BASE_URLS:
             all_urls.extend(await generate_urls(base))
 
+        # 2. 检测可用 JSON
         checked = await asyncio.gather(*[check_json(session, u, sem) for u in all_urls])
         valid_jsons = [u for u in checked if u]
 
+        # 3. 抓取所有频道
         channels = []
         fetched = await asyncio.gather(*[fetch_channels(session, u, sem) for u in valid_jsons])
         for sub in fetched:
             channels.extend(sub)
 
-        channels_with_speed = [(name, url, 0) for name, url in channels]
-        grouped = {k: [] for k in CHANNEL_CATEGORIES}
-        for name, url, speed in channels_with_speed:
-            for cat, names in CHANNEL_CATEGORIES.items():
-                if name in names:
-                    grouped[cat].append((name, url, speed))
-                    break
-        for cat, channel_order in CHANNEL_CATEGORIES.items():
-            grouped[cat].sort(key=lambda x: (channel_order.index(x[0]), x[2]))
-        write_itvlist(grouped)
-
+        # 4. 测速 / ffprobe 可播放
+        channels_with_speed = [(name, url, 0) for name, url, _ in channels]
         urls = [url for _, url, _ in channels_with_speed]
         playable_urls = await measure_all_playable(urls)
 
         channels_with_speed = [(name, url, 0) for name, url, _ in channels_with_speed if url in playable_urls]
+
+        # 5. 按分类整理
         grouped = {k: [] for k in CHANNEL_CATEGORIES}
         for name, url, speed in channels_with_speed:
             for cat, names in CHANNEL_CATEGORIES.items():
                 if name in names:
                     grouped[cat].append((name, url, speed))
                     break
+
         for cat, channel_order in CHANNEL_CATEGORIES.items():
-            grouped[cat].sort(key=lambda x: (channel_order.index(x[0]), x[2]))
+            grouped[cat].sort(key=lambda x: (channel_order.index(x[0]) if x[0] in channel_order else 9999, x[2]))
+
+        # 6. 写回文件
         write_itvlist(grouped)
 
-
+# ================= 后台循环 =================
 def background_loop():
-    """首次生成 + 周期性循环更新"""
-    asyncio.run(generate_itvlist())
     while True:
-        time.sleep(UPDATE_INTERVAL)
         try:
+            print(f"🚀 开始生成节目单，时间: {datetime.datetime.now()}")
             asyncio.run(generate_itvlist())
         except Exception as e:
-            print(f"后台更新出错: {e}")
+            print(f"⚠️ 生成节目单出错: {e}")
+        print(f"⏳ 等待 {UPDATE_INTERVAL} 秒后再次扫描 BASE_URLS...")
+        time.sleep(UPDATE_INTERVAL)
 
-
+# ================= 启动 =================
 if __name__ == "__main__":
     threading.Thread(target=background_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=PORT)

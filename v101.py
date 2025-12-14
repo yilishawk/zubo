@@ -328,6 +328,7 @@ def serve_list():
         return Response("节目单生成中，请稍候...\n", mimetype="text/plain")
     return send_file(OUTPUT_FILE, mimetype="text/plain")
 
+
 # ================= IPTV 逻辑 =================
 def is_valid_stream(url):
     if not url.startswith("http"):
@@ -335,6 +336,7 @@ def is_valid_stream(url):
     if any(bad in url for bad in ("239.", "/paiptv/", "/00/SNM/")):
         return False
     return any(ext in url for ext in (".m3u8", ".ts", ".flv", ".mp4"))
+
 
 async def generate_urls(base):
     ip_start = base.find("//") + 2
@@ -349,6 +351,7 @@ async def generate_urls(base):
             urls.append(f"{base_url}{prefix}.{i}{port}{path}")
     return urls
 
+
 async def check_json(session, url, sem):
     async with sem:
         try:
@@ -356,6 +359,7 @@ async def check_json(session, url, sem):
                 return url if r.status == 200 else None
         except:
             return None
+
 
 async def fetch_channels(session, url, sem):
     async with sem:
@@ -383,10 +387,10 @@ async def fetch_channels(session, url, sem):
         except:
             return []
 
+
 FFPROBE_CONCURRENCY = 20
 
 async def measure_playable(url, sem):
-    """使用 ffprobe 检测频道能否正常播放"""
     async with sem:
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -398,8 +402,8 @@ async def measure_playable(url, sem):
         except:
             return None
 
+
 async def measure_all_playable(urls):
-    """并发检测所有频道播放能力"""
     sem = asyncio.Semaphore(FFPROBE_CONCURRENCY)
     tasks = [measure_playable(u, sem) for u in urls]
     playable = []
@@ -408,6 +412,22 @@ async def measure_all_playable(urls):
         if res:
             playable.append(res)
     return playable
+
+
+def write_itvlist(grouped):
+    now = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).strftime("%Y-%m-%d %H:%M:%S")
+    tmp_file = OUTPUT_FILE + ".tmp"
+
+    with open(tmp_file, "w", encoding="utf-8") as f:
+        f.write(f"更新时间: {now}（北京时间）\n\n")
+        f.write("更新时间,#genre#\n")
+        f.write(f"{now},https://kakaxi-1.asia/LOGO/Disclaimer.mp4\n\n")
+        for cat in CHANNEL_CATEGORIES:
+            f.write(f"{cat},#genre#\n")
+            for name, url, _ in grouped[cat][:RESULTS_PER_CHANNEL]:
+                f.write(f"{name},{url}\n")
+    os.replace(tmp_file, OUTPUT_FILE)
+
 
 async def generate_itvlist():
     sem = asyncio.Semaphore(CONCURRENCY)
@@ -424,49 +444,31 @@ async def generate_itvlist():
         for sub in fetched:
             channels.extend(sub)
 
-        urls = [url for _, url in channels]
-        playable_urls = await measure_all_playable(urls)
-
-        channels_with_speed = [
-            (name, url, 0)
-            for (name, url) in channels if url in playable_urls
-        ]
-
-        # 分组
+        channels_with_speed = [(name, url, 0) for name, url in channels]
         grouped = {k: [] for k in CHANNEL_CATEGORIES}
         for name, url, speed in channels_with_speed:
             for cat, names in CHANNEL_CATEGORIES.items():
                 if name in names:
                     grouped[cat].append((name, url, speed))
                     break
-
         for cat, channel_order in CHANNEL_CATEGORIES.items():
-            grouped[cat].sort(
-                key=lambda x: (
-                    channel_order.index(x[0]),
-                    x[2]
-                )
-            )
-
+            grouped[cat].sort(key=lambda x: (channel_order.index(x[0]), x[2]))
         write_itvlist(grouped)
 
-def write_itvlist(grouped):
-    now = datetime.datetime.now(
-        datetime.timezone(datetime.timedelta(hours=8))
-    ).strftime("%Y-%m-%d %H:%M:%S")
+        urls = [url for _, url, _ in channels_with_speed]
+        playable_urls = await measure_all_playable(urls)
 
-    tmp_file = OUTPUT_FILE + ".tmp"
-    with open(tmp_file, "w", encoding="utf-8") as f:
-        f.write(f"更新时间: {now}（北京时间）\n\n")
-        f.write("更新时间,#genre#\n")
-        f.write(f"{now},https://kakaxi-1.asia/LOGO/Disclaimer.mp4\n\n")
+        channels_with_speed = [(name, url, 0) for name, url, _ in channels_with_speed if url in playable_urls]
+        grouped = {k: [] for k in CHANNEL_CATEGORIES}
+        for name, url, speed in channels_with_speed:
+            for cat, names in CHANNEL_CATEGORIES.items():
+                if name in names:
+                    grouped[cat].append((name, url, speed))
+                    break
+        for cat, channel_order in CHANNEL_CATEGORIES.items():
+            grouped[cat].sort(key=lambda x: (channel_order.index(x[0]), x[2]))
+        write_itvlist(grouped)
 
-        for cat in CHANNEL_CATEGORIES:
-            f.write(f"{cat},#genre#\n")
-            for name, url, _ in grouped[cat][:RESULTS_PER_CHANNEL]:
-                f.write(f"{name},{url}\n")
-
-    os.replace(tmp_file, OUTPUT_FILE)
 
 def background_loop():
     """首次生成 + 周期性循环更新"""
@@ -477,6 +479,7 @@ def background_loop():
             asyncio.run(generate_itvlist())
         except Exception as e:
             print(f"后台更新出错: {e}")
+
 
 if __name__ == "__main__":
     threading.Thread(target=background_loop, daemon=True).start()

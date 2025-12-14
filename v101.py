@@ -370,8 +370,9 @@ async def fetch_channels(session, url, sem):
                         u = urljoin(url, u)
 
                     for std, aliases in CHANNEL_MAPPING.items():
-                        if name in aliases:
+                        if any(alias in name for alias in aliases):
                             name = std
+                            break
 
                     if is_valid_stream(u):
                         results.append((name, u))
@@ -411,13 +412,20 @@ async def generate_itvlist():
         channels_with_speed = [(name, url, spd) for (name, url), spd in zip(channels, speeds)]
 
         grouped = {k: [] for k in CHANNEL_CATEGORIES}
+
         for name, url, speed in channels_with_speed:
             for cat, names in CHANNEL_CATEGORIES.items():
                 if name in names:
                     grouped[cat].append((name, url, speed))
+                    break
 
-        for cat in grouped:
-            grouped[cat].sort(key=lambda x: x[2])
+        for cat, channel_order in CHANNEL_CATEGORIES.items():
+            grouped[cat].sort(
+                key=lambda x: (
+                    channel_order.index(x[0]),
+                    x[2]
+                )
+            )
 
         write_itvlist(grouped)
 
@@ -428,8 +436,10 @@ def write_itvlist(grouped):
 
     tmp_file = OUTPUT_FILE + ".tmp"
     with open(tmp_file, "w", encoding="utf-8") as f:
+        f.write(f"更新时间: {now}（北京时间）\n\n")
         f.write("更新时间,#genre#\n")
-        f.write(f"{now},http://example.com/disclaimer.mp4\n\n")
+        f.write(f"{now},https://kakaxi-1.asia/LOGO/Disclaimer.mp4\n\n")
+
 
         for cat in CHANNEL_CATEGORIES:
             f.write(f"{cat},#genre#\n")

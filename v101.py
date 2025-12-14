@@ -3,10 +3,11 @@ import aiohttp
 import datetime
 import threading
 import os
-import re
 import time
+import subprocess
 from flask import Flask, send_file, Response
 from urllib.parse import urljoin
+import re
 
 # ================= 配置 =================
 PORT = 5000
@@ -382,16 +383,31 @@ async def fetch_channels(session, url, sem):
         except:
             return []
 
-async def measure_speed(session, url, sem):
+FFPROBE_CONCURRENCY = 20
+
+async def measure_playable(url, sem):
+    """使用 ffprobe 检测频道能否正常播放"""
     async with sem:
-        start = time.time()
         try:
-            async with session.head(url, timeout=2) as resp:
-                if resp.status == 200:
-                    return int((time.time() - start) * 1000)
-                return 999999
+            proc = await asyncio.create_subprocess_exec(
+                "ffprobe", "-v", "error", "-t", "4", "-i", url,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            await asyncio.wait_for(proc.communicate(), timeout=8)
+            return url
         except:
-            return 999999
+            return None
+
+async def measure_all_playable(urls):
+    """并发检测所有频道播放能力"""
+    sem = asyncio.Semaphore(FFPROBE_CONCURRENCY)
+    tasks = [measure_playable(u, sem) for u in urls]
+    playable = []
+    for fut in asyncio.as_completed(tasks):
+        res = await fut
+        if res:
+            playable.append(res)
+    return playable
 
 async def generate_itvlist():
     sem = asyncio.Semaphore(CONCURRENCY)
@@ -408,13 +424,16 @@ async def generate_itvlist():
         for sub in fetched:
             channels.extend(sub)
 
-        speed_tasks = [measure_speed(session, url, sem) for _, url in channels]
-        speeds = await asyncio.gather(*speed_tasks)
+        urls = [url for _, url in channels]
+        playable_urls = await measure_all_playable(urls)
 
-        channels_with_speed = [(name, url, spd) for (name, url), spd in zip(channels, speeds)]
+        channels_with_speed = [
+            (name, url, 0)
+            for (name, url) in channels if url in playable_urls
+        ]
 
+        # 分组
         grouped = {k: [] for k in CHANNEL_CATEGORIES}
-
         for name, url, speed in channels_with_speed:
             for cat, names in CHANNEL_CATEGORIES.items():
                 if name in names:
@@ -441,7 +460,6 @@ def write_itvlist(grouped):
         f.write(f"更新时间: {now}（北京时间）\n\n")
         f.write("更新时间,#genre#\n")
         f.write(f"{now},https://kakaxi-1.asia/LOGO/Disclaimer.mp4\n\n")
-
 
         for cat in CHANNEL_CATEGORIES:
             f.write(f"{cat},#genre#\n")

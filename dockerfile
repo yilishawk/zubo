@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -10,8 +10,8 @@ RUN apt-get update && \
 
 RUN pip install --no-cache-dir flask aiohttp
 
-ENV PYTHONUNBUFFERED=1 \
-    PORT=5000 \
-    UPDATE_INTERVAL=21600
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 5000
 
 CMD ["python", "v101.py"]

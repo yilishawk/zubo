@@ -3,6 +3,7 @@ import aiohttp
 import datetime
 import threading
 import os
+import re
 import time
 from flask import Flask, send_file, Response
 from urllib.parse import urljoin
@@ -370,9 +371,10 @@ async def fetch_channels(session, url, sem):
                         u = urljoin(url, u)
 
                     for std, aliases in CHANNEL_MAPPING.items():
-                        if any(alias in name for alias in aliases):
-                            name = std
-                            break
+                        for alias in aliases:
+                            if re.fullmatch(alias, name, re.IGNORECASE):
+                                name = std
+                                break
 
                     if is_valid_stream(u):
                         results.append((name, u))

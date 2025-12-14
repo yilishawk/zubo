@@ -1,15 +1,14 @@
-FROM jrottenberg/ffmpeg:6.0-slim AS ffmpeg-build
-
 FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir aiohttp flask
+RUN apt-get update && \
+    apt-get install -y ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY v101.py .
 
-COPY --from=ffmpeg-build /usr/local/bin/ffmpeg /usr/local/bin/ffmpeg
-COPY --from=ffmpeg-build /usr/local/bin/ffprobe /usr/local/bin/ffprobe
+RUN pip install --no-cache-dir aiohttp flask
 
 EXPOSE 5000
 

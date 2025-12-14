@@ -10,8 +10,11 @@
 
 ## Docker版
 1.拉取镜像 `docker pull kakaxi088/kakaxi:v1.0.0` 
+
 2.启动容器 `docker run -d --name kakaxi -p 5000:5000 kakaxi088/kakaxi:v1.0.0` 5000端口被占用可设置其他端口（port）
+
 3.容器第一次启动运行抓取需要30-60分钟，输入 `curl http://127.0.0.1:5000/list.txt` 查看抓取状态
+
 4.等待抓取完成后 `http://IP:port/list.txt` 订阅。其中ip为载具ip（如软路由等），port为自己修改后的端口，如没改则用5000
 
 ---

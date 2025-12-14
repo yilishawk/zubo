@@ -2,7 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir aiohttp flask
+RUN apt-get update && \
+    apt-get install -y ffmpeg && \
+    pip install --no-cache-dir aiohttp flask && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY v101.py .
 

@@ -13,9 +13,11 @@ from flask import Flask, send_file, Response
 PORT = 5000
 UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", 21600))
 OUTPUT_FILE = "list.txt"
-CONCURRENCY = 300
-JSON_CONCURRENCY = 200
+CONCURRENCY = 200
+JSON_CONCURRENCY = 150
 FFPROBE_CONCURRENCY = 10
+MAX_SOURCES_PER_CHANNEL = 20
+FFPROBE_TIMEOUT = 12
 
 BASE_URLS = [
     "http://182.207.218.1:999",
@@ -394,23 +396,41 @@ async def probe_speed(url, sem):
         start = time.time()
         try:
             proc = await asyncio.create_subprocess_exec(
-                "ffprobe", "-v", "error", "-t", "6", "-i", url,
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=codec_type",
+                "-of", "default=nw=1",
+                "-i", url,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
-            await asyncio.wait_for(proc.communicate(), timeout=12)
-            return time.time() - start
+            await asyncio.wait_for(proc.communicate(), timeout=FFPROBE_TIMEOUT)
+
+            if proc.returncode == 0:
+                return time.time() - start
+            return None
         except:
-            return 9999
+            return None
 
 async def measure_channel_sources(channel_dict):
     sem = asyncio.Semaphore(FFPROBE_CONCURRENCY)
     measured = {}
 
     for name, urls in channel_dict.items():
+        # ⚠️ 关键：先裁剪，再测速
+        urls = urls[:MAX_SOURCES_PER_CHANNEL]
+
         tasks = [probe_speed(u, sem) for u in urls]
         speeds = await asyncio.gather(*tasks)
-        measured[name] = list(zip(urls, speeds))
+
+        valid = [
+            (u, s) for u, s in zip(urls, speeds)
+            if s is not None
+        ]
+
+        if valid:
+            measured[name] = valid
 
     return measured
 
@@ -477,4 +497,4 @@ def background_loop():
 
 if __name__ == "__main__":
     threading.Thread(target=background_loop, daemon=True).start()
-    app.run(host="0.0.0.0", port=PORT)
+    app.run(host="0.0.0.0", port=PORT, threaded=True)

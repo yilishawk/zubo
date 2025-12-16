@@ -9,19 +9,19 @@ import datetime
 import json
 import psutil
 from urllib.parse import urljoin
-from flask import Flask, send_file, Response
+from flask import Flask, send_file, Response, make_response
 
 # ================= 核心配置 =================
 PORT = 5000
 UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", 21600))
-OUTPUT_FILE = "/app/list.txt"
-PLACEHOLDER_FILE = "/app/list_placeholder.txt"
-CONCURRENCY = 80
-JSON_CONCURRENCY = 60
-FFPROBE_CONCURRENCY = 4
-MAX_SOURCES_PER_CHANNEL = 15
-FFPROBE_TIMEOUT = 10
-CLEAN_ZOMBIE_INTERVAL = 10800
+CLEAN_INTERVAL = 10800
+OUTPUT_FILE = "list.txt"
+PLACEHOLDER_FILE = "list_placeholder.txt"
+CONCURRENCY = 200
+JSON_CONCURRENCY = 150
+FFPROBE_CONCURRENCY = 10
+MAX_SOURCES_PER_CHANNEL = 20
+FFPROBE_TIMEOUT = 12
 
 BASE_URLS = [
     "http://61.156.228.1:8154",
@@ -332,84 +332,156 @@ CHANNEL_MAPPING = {
 
 app = Flask(__name__)
 
-def init_placeholder():
-    """创建占位节目单，避免返回空文件"""
-    placeholder_content = """更新时间,#genre#
-节目单生成中，请30-60分钟后重试,#genre#
+def fix_placeholder_response():
+    """首次启动占位文件返回格式兼容播放器"""
+    with open(PLACEHOLDER_FILE, "r", encoding="utf-8") as f:
+        content = f.read()
+    response = make_response(content)
+    response.headers["Content-Type"] = "text/plain; charset=utf-8"
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
-等待提示,#genre#
-快马加鞭生成中（首次启动需等待约30-60分钟）,https://kakaxi-1.asia/LOGO/Disclaimer.mp4
-请稍后重试,https://kakaxi-1.asia/LOGO/Disclaimer.mp4
-"""
-    os.makedirs(os.path.dirname(PLACEHOLDER_FILE), exist_ok=True)
-    with open(PLACEHOLDER_FILE, "w", encoding="utf-8") as f:
-        f.write(placeholder_content)
-    if os.path.exists(OUTPUT_FILE):
-        try:
-            os.remove(OUTPUT_FILE)
-        except:
-            pass
-    print("✅ 占位文件初始化完成")
-
-def clean_zombie_processes():
-    """清理僵尸进程，释放内存和PID"""
+async def probe_has_video(url):
+    """检测是否包含有效视频流过滤广播频道"""
     try:
-        zombie_count = 0
-        for proc in psutil.process_iter(['pid', 'status', 'name']):
+        proc = await asyncio.create_subprocess_exec(
+            "ffprobe",
+            "-v", "error",
+            "-show_entries", "stream=codec_type,width,height",
+            "-of", "json",
+            "-i", url,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=FFPROBE_TIMEOUT)
+        if proc.returncode != 0:
+            return False
+        
+        ffprobe_data = json.loads(stdout.decode('utf-8', errors='ignore'))
+        streams = ffprobe_data.get("streams", [])
+        for stream in streams:
+            if stream.get("codec_type") == "video" and stream.get("width", 0) > 0 and stream.get("height", 0) > 0:
+                return True
+        return False
+    except:
+        return False
+
+def clean_garbage():
+    """每3小时清理僵尸进程、临时文件、内存碎片"""
+    zombie_count = 0
+    try:
+        for proc in psutil.process_iter(['pid', 'status']):
             try:
                 if proc.info['status'] == psutil.STATUS_ZOMBIE:
                     proc.kill()
                     zombie_count += 1
-                    print(f"🗑️ 清理僵尸进程 - PID: {proc.info['pid']}, 名称: {proc.info.get('name', '未知')}")
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-        if zombie_count > 0:
-            print(f"✅ 共清理 {zombie_count} 个僵尸进程")
-        else:
-            print("ℹ️ 未检测到僵尸进程")
+        print(f"✅ 清理僵尸进程完成，共删除 {zombie_count} 个")
     except Exception as e:
-        print(f"⚠️ 清理僵尸进程失败: {str(e)}")
+        print(f"⚠️ 清理僵尸进程失败: {e}")
 
-def clean_temp_files():
-    """清理临时文件，释放磁盘空间"""
     temp_files = [
         OUTPUT_FILE + ".tmp",
-        PLACEHOLDER_FILE,
+        PLACEHOLDER_FILE + ".tmp",
         "/tmp/ffprobe*",
-        "/app/*.tmp"
+        "/tmp/aiohttp*"
     ]
-    cleaned_count = 0
-    for temp_file in temp_files:
-        try:
+    file_count = 0
+    try:
+        for temp_file in temp_files:
             if "*" in temp_file:
                 import glob
                 for f in glob.glob(temp_file):
                     os.remove(f)
-                    cleaned_count += 1
+                    file_count += 1
             elif os.path.exists(temp_file):
                 os.remove(temp_file)
-                cleaned_count += 1
-        except:
-            continue
-    print(f"✅ 清理临时文件完成，共删除 {cleaned_count} 个文件")
+                file_count += 1
+        print(f"✅ 清理临时文件完成，共删除 {file_count} 个")
+    except Exception as e:
+        print(f"⚠️ 清理临时文件失败: {e}")
+
+    try:
+        if os.name == 'posix':
+            import ctypes
+            libc = ctypes.CDLL("libc.so.6")
+            libc.malloc_trim(0)
+        print(f"✅ 清理内存碎片完成")
+    except:
+        pass
+
+def clean_loop():
+    """3小时清理一次的循环任务"""
+    while True:
+        time.sleep(CLEAN_INTERVAL)
+        clean_garbage()
+
+def init_placeholder():
+    """初始化占位文件"""
+    placeholder_content = """更新时间,#genre#
+节目单生成中，请30-60分钟后重试,#genre#
+"""
+    with open(PLACEHOLDER_FILE, "w", encoding="utf-8") as f:
+        f.write(placeholder_content)
+    if os.path.exists(OUTPUT_FILE):
+        os.remove(OUTPUT_FILE)
 
 def is_valid_stream(url: str) -> bool:
-    """验证流地址是否有效"""
+    """验证流地址"""
     if url.startswith(("rtp://", "udp://", "rtsp://")):
         return False
     if any(x in url for x in ("239.", "/paiptv/", "/00/SNM/", "/00/CHANNEL")):
         return False
     return any(ext in url for ext in (".m3u8", ".ts", ".flv", ".mp4"))
 
+def generate_json_urls():
+    """生成JSON URL"""
+    urls = []
+    for base in BASE_URLS:
+        ip_start = base.find("//") + 2
+        ip_end = base.find(":", ip_start)
+        base_url = base[:ip_start]
+        prefix = base[ip_start:ip_end].rsplit(".", 1)[0]
+        port = base[ip_end:]
+        for i in range(1, 256):
+            for path in JSON_PATHS:
+                urls.append(f"{base_url}{prefix}.{i}{port}{path}")
+    return urls
+
+async def check_json(session, url, sem):
+    """检查JSON接口"""
+    async with sem:
+        try:
+            async with session.get(url, timeout=2) as r:
+                return url if r.status == 200 else None
+        except:
+            return None
+
+async def fetch_channels(session, url, sem):
+    """爬取频道"""
+    async with sem:
+        try:
+            async with session.get(url, timeout=3) as r:
+                data = await r.json()
+                result = []
+                for item in data.get("data", []):
+                    name = item.get("name")
+                    u = item.get("url")
+                    if not name or not u or "," in u:
+                        continue
+                    if not u.startswith("http"):
+                        u = urljoin(url, u)
+                    result.append((name.strip(), u.strip()))
+                return result
+        except:
+            return []
+
 def normalize_name(name: str) -> str:
-    """标准化频道名称，过滤广播/音频频道"""
+    """标准化频道名"""
     n = name.strip()
     n = n.replace("＋", "+").replace("（", "(").replace("）", ")")
-    
-    exclude_keywords = ["广播", "音频", "电台", "FM", "AM", "音乐台", "有声"]
-    if any(keyword in n for keyword in exclude_keywords):
-        return ""
-    
     for std, aliases in CHANNEL_MAPPING.items():
         for a in aliases:
             a2 = a.replace("＋", "+").replace("（", "(").replace("）", ")")
@@ -417,227 +489,88 @@ def normalize_name(name: str) -> str:
                 return std
     return n
 
-def generate_json_urls():
-    """生成待爬取的JSON URL列表"""
-    urls = []
-    for base in BASE_URLS:
-        try:
-            ip_start = base.find("//") + 2
-            ip_end = base.find(":", ip_start)
-            base_url = base[:ip_start]
-            prefix = base[ip_start:ip_end].rsplit(".", 1)[0]
-            port = base[ip_end:]
-
-            for i in range(1, 256):
-                for path in JSON_PATHS:
-                    urls.append(f"{base_url}{prefix}.{i}{port}{path}")
-        except:
-            continue
-    return urls
-
 def group_by_channel(channels):
-    """按频道分组"""
+    """分组频道"""
     grouped = {}
     for name, url in channels:
-        if name:
-            grouped.setdefault(name, []).append(url)
+        grouped.setdefault(name, []).append(url)
     return grouped
 
-# ================= 异步函数 =================
-async def check_json(session, url, sem):
-    """检查JSON接口是否可用"""
-    async with sem:
-        try:
-            async with session.get(url, timeout=2, verify_ssl=False) as r:
-                return url if r.status == 200 else None
-        except:
-            return None
-
-async def fetch_channels(session, url, sem):
-    """爬取频道列表"""
-    async with sem:
-        try:
-            async with session.get(url, timeout=3, verify_ssl=False) as r:
-                data = await r.json()
-                result = []
-                for item in data.get("data", []):
-                    name = item.get("name", "")
-                    u = item.get("url", "")
-                    if not name or not u or "," in u:
-                        continue
-                    if not u.startswith("http"):
-                        u = urljoin(url, u)
-                    norm_name = normalize_name(name)
-                    if norm_name and is_valid_stream(u):
-                        result.append((norm_name, u))
-                return result
-        except:
-            return []
-
-async def probe_speed(url, sem):
-    """检测流是否包含有效视频流，并返回测速结果"""
-    async with sem:
-        start = time.time()
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "ffprobe",
-                "-v", "error",
-                "-show_entries", "stream=codec_type,width,height",
-                "-of", "json",
-                "-i", url,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=FFPROBE_TIMEOUT)
-
-            if proc.returncode != 0:
-                return None
-            
-            ffprobe_data = json.loads(stdout.decode('utf-8', errors='ignore'))
-            streams = ffprobe_data.get("streams", [])
-            
-            has_valid_video = False
-            for stream in streams:
-                if stream.get("codec_type") == "video":
-                    width = stream.get("width", 0)
-                    height = stream.get("height", 0)
-                    if width > 0 and height > 0:
-                        has_valid_video = True
-                        break
-            
-            if has_valid_video:
-                return time.time() - start
-            else:
-                print(f"❌ 过滤纯音频流: {url}")
-                return None
-        except Exception as e:
-            return None
-
 async def measure_channel_sources(channel_dict):
-    """检测频道源的有效性"""
+    """测速"""
     sem = asyncio.Semaphore(FFPROBE_CONCURRENCY)
     measured = {}
-
     for name, urls in channel_dict.items():
         urls = urls[:MAX_SOURCES_PER_CHANNEL]
-        tasks = [probe_speed(u, sem) for u in urls]
-        speeds = await asyncio.gather(*tasks)
-        valid = [
-            (u, s) for u, s in zip(urls, speeds)
-            if s is not None
-        ]
-        valid.sort(key=lambda x: x[1])
+        valid = []
+        for url in urls:
+            if await probe_has_video(url):
+                valid.append(url)
         if valid:
-            measured[name] = [v[0] for v in valid]
-    
+            measured[name] = valid
     return measured
 
 async def generate_itvlist():
-    """生成最终的节目单"""
-    clean_temp_files()
-    
-    timeout = aiohttp.ClientTimeout(total=600)
-    connector = aiohttp.TCPConnector(ssl=False)
-    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+    """生成节目单"""
+    async with aiohttp.ClientSession() as session:
         json_urls = generate_json_urls()
         sem_json = asyncio.Semaphore(JSON_CONCURRENCY)
-        json_tasks = [check_json(session, url, sem_json) for url in json_urls]
-        valid_json_urls = [u for u in await asyncio.gather(*json_tasks) if u]
-        print(f"✅ 检测到 {len(valid_json_urls)} 个可用的JSON接口")
-
-        sem_fetch = asyncio.Semaphore(CONCURRENCY)
-        fetch_tasks = [fetch_channels(session, url, sem_fetch) for url in valid_json_urls]
-        all_channels = []
-        for channels in await asyncio.gather(*fetch_tasks):
-            all_channels.extend(channels)
-        unique_channels = list({(n, u) for n, u in all_channels})
-        print(f"✅ 爬取到 {len(unique_channels)} 个唯一频道")
-
-        channel_dict = group_by_channel(unique_channels)
-        measured = await measure_channel_sources(channel_dict)
-        print(f"✅ 有效频道源检测完成，保留 {len(measured)} 个频道")
-
-        now = datetime.datetime.now(datetime.timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M:%S")
-        tmp_file = OUTPUT_FILE + ".tmp"
+        valid_json_urls = [u for u in await asyncio.gather(*[check_json(session, url, sem_json) for url in json_urls]) if u]
         
+        sem_fetch = asyncio.Semaphore(CONCURRENCY)
+        all_channels = []
+        for channels in await asyncio.gather(*[fetch_channels(session, url, sem_fetch) for url in valid_json_urls]):
+            all_channels.extend(channels)
+        
+        normalized = [(normalize_name(n), u) for n, u in all_channels if is_valid_stream(u)]
+        channel_dict = group_by_channel(normalized)
+        measured = await measure_channel_sources(channel_dict)
+        
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        tmp_file = OUTPUT_FILE + ".tmp"
         with open(tmp_file, "w", encoding="utf-8") as f:
-            f.write(f"更新时间,#genre#\n")
-            f.write(f"{now},https://kakaxi-1.asia/LOGO/Disclaimer.mp4\n\n")
-            
+            f.write(f"更新时间,#genre#\n{now},https://kakaxi-1.asia/LOGO/Disclaimer.mp4\n\n")
             for cat, channel_list in CHANNEL_CATEGORIES.items():
                 f.write(f"{cat},#genre#\n")
                 for channel in channel_list:
                     if channel in measured and measured[channel]:
                         f.write(f"{channel},{measured[channel][0]}\n")
                 f.write("\n")
-        
         os.replace(tmp_file, OUTPUT_FILE)
-        print(f"✅ 节目单生成完成: {OUTPUT_FILE}")
         
         if os.path.exists(PLACEHOLDER_FILE):
             os.remove(PLACEHOLDER_FILE)
-    
-    return True
 
-# ================= 后台任务 =================
 def background_loop():
-    """后台循环任务：生成节目单 + 定期清理"""
+    """后台循环"""
     first_run = True
-    clean_counter = 0
-    
     while True:
         try:
-            if clean_counter >= CLEAN_ZOMBIE_INTERVAL:
-                clean_zombie_processes()
-                clean_counter = 0
-            
             if first_run:
-                print("🚀 首次启动，开始生成节目单...")
+                asyncio.run(generate_itvlist())
                 first_run = False
-                asyncio.run(generate_itvlist())
             else:
-                print(f"🚀 定期更新，距离上次生成已过 {UPDATE_INTERVAL/3600} 小时")
+                time.sleep(UPDATE_INTERVAL)
                 asyncio.run(generate_itvlist())
-            
-            for i in range(UPDATE_INTERVAL):
-                time.sleep(1)
-                clean_counter += 1
-        
         except Exception as e:
-            print(f"⚠️ 后台任务异常: {str(e)}")
+            print(f"生成节目单异常: {e}")
             if not os.path.exists(PLACEHOLDER_FILE):
                 init_placeholder()
             time.sleep(60)
 
-# ================= Flask接口 =================
 @app.route("/list.txt")
 def serve_list():
-    """提供节目单访问接口"""
+    """Flask接口"""
     if os.path.exists(OUTPUT_FILE):
-        return send_file(OUTPUT_FILE, mimetype="text/plain")
+        response = make_response(send_file(OUTPUT_FILE, mimetype="text/plain"))
+        response.headers["Content-Type"] = "text/plain; charset=utf-8"
+        return response
     else:
-        return send_file(PLACEHOLDER_FILE, mimetype="text/plain")
+        init_placeholder()
+        return fix_placeholder_response()
 
-# ================= 主函数 =================
 if __name__ == "__main__":
     init_placeholder()
-    
-    bg_thread = threading.Thread(target=background_loop, daemon=True)
-    bg_thread.start()
-    print("✅ 后台任务线程已启动")
-    
-    print(f"🌐 Flask服务启动，监听端口 {PORT}")
-    print(f"ℹ️ 当前返回占位节目单，真实节目单正在后台生成")
-    
-    try:
-        app.run(
-            host="0.0.0.0",
-            port=PORT,
-            threaded=True,
-            debug=False
-        )
-    except Exception as e:
-        print(f"⚠️ Flask启动失败: {str(e)}")
-        while True:
-            time.sleep(3600)
-
+    threading.Thread(target=background_loop, daemon=True).start()
+    threading.Thread(target=clean_loop, daemon=True).start()
+    app.run(host="0.0.0.0", port=PORT, threaded=True)

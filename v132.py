@@ -537,7 +537,8 @@ async def generate_itvlist():
     clean_temp_files()
     
     timeout = aiohttp.ClientTimeout(total=600)
-    async with aiohttp.ClientSession(timeout=timeout, verify_ssl=False) as session:
+    connector = aiohttp.TCPConnector(ssl=False)
+    async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
         json_urls = generate_json_urls()
         sem_json = asyncio.Semaphore(JSON_CONCURRENCY)
         json_tasks = [check_json(session, url, sem_json) for url in json_urls]
@@ -639,3 +640,4 @@ if __name__ == "__main__":
         print(f"⚠️ Flask启动失败: {str(e)}")
         while True:
             time.sleep(3600)
+

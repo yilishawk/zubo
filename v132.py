@@ -420,8 +420,10 @@ def clean_loop():
 
 def init_placeholder():
     """初始化占位文件"""
-    placeholder_content = """更新时间,#genre#
-节目单生成中，请30-60分钟后重试,#genre#
+    placeholder_content = """努力生成中,#genre#
+首次启动需等待,https://kakaxi-1.asia/LOGO/Disclaimer.mp4
+请30-60分钟后重试,#genre#
+勿急正在快马加鞭,https://kakaxi-1.asia/LOGO/Disclaimer.mp4
 """
     with open(PLACEHOLDER_FILE, "w", encoding="utf-8") as f:
         f.write(placeholder_content)
@@ -574,3 +576,4 @@ if __name__ == "__main__":
     threading.Thread(target=background_loop, daemon=True).start()
     threading.Thread(target=clean_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=PORT, threaded=True)
+

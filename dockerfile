@@ -1,14 +1,14 @@
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 WORKDIR /app
 
+COPY requirements.txt .
+
+RUN apk add --no-cache ffmpeg gcc musl-dev libffi-dev openssl-dev && \
+    pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple && \
+    apk del gcc musl-dev libffi-dev openssl-dev
+
 COPY v132.py .
-
-RUN apt-get update && \
-    apt-get install -y ffmpeg && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN pip install --no-cache-dir flask aiohttp
 
 ENV PYTHONUNBUFFERED=1
 

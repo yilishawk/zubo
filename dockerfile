@@ -1,25 +1,18 @@
-FROM python:3.11-alpine
+FROM python:3.10-slim-bullseye
 
 WORKDIR /app
 
-RUN apk add --no-cache \
+RUN apt update && apt install -y --no-install-recommends \
     ffmpeg \
+    libc6-dev \
     gcc \
-    python3-dev \
-    musl-dev \
-    linux-headers && \
-    rm -rf /var/cache/apk/*
+    && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-
-RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-
-RUN apk del gcc python3-dev musl-dev linux-headers
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY v132.py .
 
-ENV PYTHONUNBUFFERED=1
-
 EXPOSE 5000
 
-CMD ["python", "v132.py"]
+CMD ["python", "-X", "gc_threshold=1000000", "v132.py"]

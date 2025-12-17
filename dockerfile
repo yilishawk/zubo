@@ -11,8 +11,8 @@ RUN apt update && apt install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY v132.py .
+COPY v140.py .
 
 EXPOSE 5000
 
-CMD ["python", "-X", "gc_threshold=1000000", "v132.py"]
+CMD ["python", "-X", "gc_threshold=1000000", "v140.py"]

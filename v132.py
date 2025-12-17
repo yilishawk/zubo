@@ -19,16 +19,32 @@ IS_FIRST_RUN = True
 FIRST_RUN_LIMIT = 40000
 MAX_SOURCES_TO_WRITE = 8
 MAX_SOURCES_PER_CHANNEL = 20
-
 PORT = 5000
 UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", 21600))
 CLEAN_INTERVAL = 7200
 OUTPUT_FILE = "list.txt"
 PLACEHOLDER_FILE = "list_placeholder.txt"
-CONCURRENCY = 150
-JSON_CONCURRENCY = 100
-FFPROBE_CONCURRENCY = 8
-FFPROBE_TIMEOUT = 12
+import psutil, os
+CPU = psutil.cpu_count(logical=True) or 2
+AUTO_FFPROBE = max(2, min(8, CPU // 2))
+FFPROBE_CONCURRENCY = int(os.getenv("FFPROBE_CONCURRENCY", AUTO_FFPROBE))
+JSON_CONCURRENCY = int(os.getenv("JSON_CONCURRENCY", FFPROBE_CONCURRENCY * 10))
+CONCURRENCY = int(os.getenv("CONCURRENCY", JSON_CONCURRENCY + 40))
+FFPROBE_TIMEOUT = int(os.getenv("FFPROBE_TIMEOUT", 10))
+
+def get_elapsed_time():
+    if not SERVICE_START_TIME:
+        return "00-00"
+    elapsed = time.time() - SERVICE_START_TIME
+    hours = int(elapsed // 3600)
+    minutes = int((elapsed % 3600) // 60)
+    seconds = int(elapsed % 60)
+    if hours > 0:
+        return f"{hours:02d}-{minutes:02d}-{seconds:02d}"
+    else:
+        return f"{minutes:02d}-{seconds:02d}"
+
+print(f"📌 CPU核心数：{CPU} → 自动适配ffprobe并发：{FFPROBE_CONCURRENCY}，JSON并发：{JSON_CONCURRENCY}（{get_elapsed_time()}）")
 
 BASE_URLS = [
     "http://61.156.228.1:8154",
@@ -650,7 +666,9 @@ async def generate_itvlist():
         del channel_dict
         force_gc()
         
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        import pytz
+        tz = pytz.timezone('Asia/Shanghai')
+        now = datetime.datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
         tmp_file = OUTPUT_FILE + ".tmp"
         with open(tmp_file, "w", encoding="utf-8") as f:
             f.write(f"更新时间,#genre#\n{now},https://kakaxi-1.asia/LOGO/Disclaimer.mp4\n\n")
@@ -713,7 +731,6 @@ def serve_list():
         init_placeholder()
         return fix_placeholder_response()
 
-# ================= 主函数 =================
 if __name__ == "__main__":
     SERVICE_START_TIME = time.time()
     print(f"🚀 IPTV节目单服务启动 （{get_elapsed_time()}）")
@@ -732,3 +749,4 @@ if __name__ == "__main__":
         debug=False,
         use_reloader=False
     )
+

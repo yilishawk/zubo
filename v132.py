@@ -18,7 +18,7 @@ SERVICE_START_TIME = None
 IS_FIRST_RUN = True
 FIRST_RUN_LIMIT = 40000
 MAX_SOURCES_TO_WRITE = 8
-MAX_SOURCES_PER_CHANNEL = 20
+MAX_SOURCES_PER_CHANNEL = 25
 PORT = 5000
 UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", 21600))
 CLEAN_INTERVAL = 7200
@@ -749,4 +749,5 @@ if __name__ == "__main__":
         debug=False,
         use_reloader=False
     )
+
 

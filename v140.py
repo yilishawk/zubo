@@ -11,14 +11,17 @@ import psutil
 import gc
 import resource
 import weakref
+import glob
+import logging
+from datetime import timedelta
 from urllib.parse import urljoin
-from flask import Flask, send_file, Response, make_response
+from flask import Flask, send_file, make_response, redirect, Response
 
 SERVICE_START_TIME = None
 IS_FIRST_RUN = True
 FIRST_RUN_LIMIT = 40000
 MAX_SOURCES_TO_WRITE = 8
-MAX_SOURCES_PER_CHANNEL = 25
+MAX_SOURCES_PER_CHANNEL = 30
 PORT = 5000
 UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", 21600))
 CLEAN_INTERVAL = 7200
@@ -26,11 +29,11 @@ OUTPUT_FILE = "list.txt"
 PLACEHOLDER_FILE = "list_placeholder.txt"
 import psutil, os
 CPU = psutil.cpu_count(logical=True) or 2
-AUTO_FFPROBE = max(2, min(8, CPU // 2))
+AUTO_FFPROBE = max(4, min(12, CPU // 2))
 FFPROBE_CONCURRENCY = int(os.getenv("FFPROBE_CONCURRENCY", AUTO_FFPROBE))
-JSON_CONCURRENCY = int(os.getenv("JSON_CONCURRENCY", FFPROBE_CONCURRENCY * 10))
-CONCURRENCY = int(os.getenv("CONCURRENCY", JSON_CONCURRENCY + 40))
-FFPROBE_TIMEOUT = int(os.getenv("FFPROBE_TIMEOUT", 10))
+JSON_CONCURRENCY = int(os.getenv("JSON_CONCURRENCY", FFPROBE_CONCURRENCY * 15))
+CONCURRENCY = int(os.getenv("CONCURRENCY", JSON_CONCURRENCY + 60))
+FFPROBE_TIMEOUT = int(os.getenv("FFPROBE_TIMEOUT", 7))
 
 def get_elapsed_time():
     if not SERVICE_START_TIME:
@@ -286,31 +289,31 @@ CHANNEL_MAPPING = {
     "CCTV15": ["CCTV-15", "CCTV15-音乐", "CCTV-15 音乐", "CCTV-15音乐", "CCTV15HD", "cctv15HD", "CCTV-15HD", "cctv-15HD", "CCTV15音乐高清", "cctv15"],
     "CCTV16": ["CCTV-16", "CCTV-16 HD", "CCTV-16 4K", "CCTV-16奥林匹克", "CCTV16HD", "cctv16HD", "CCTV-16HD", "cctv-16HD", "CCTV16奥林匹克高清", "cctv16"],
     "CCTV17": ["CCTV-17", "CCTV17高清", "CCTV17 HD", "CCTV-17农业农村", "CCTV17HD", "cctv17HD", "CCTV-17HD", "cctv-17HD", "CCTV17农业农村高清", "cctv17"],
-    "兵器科技": ["CCTV-兵器科技", "CCTV兵器科技", "CCTV兵器科技HD"],
+    "兵器科技": ["CCTV-兵器科技", "CCTV兵器科技", "CCTV兵器高清"],
     "风云音乐": ["CCTV-风云音乐", "CCTV风云音乐", "CCTV风云音乐HD"],
-    "第一剧场": ["CCTV-第一剧场", "CCTV第一剧场", "CCTV第一剧场HD"],
-    "风云足球": ["CCTV-风云足球", "CCTV风云足球", "CCTV风云足球HD"],
+    "第一剧场": ["CCTV-第一剧场", "CCTV第一剧场", "CCTV第一剧场HD", "第一剧场高清"],
+    "风云足球": ["CCTV-风云足球", "CCTV风云足球", "CCTV风云足球HD", "风云足球高清"],
     "风云剧场": ["CCTV-风云剧场", "CCTV风云剧场", "CCTV风云剧场HD"],
-    "怀旧剧场": ["CCTV-怀旧剧场", "CCTV怀旧剧场", "CCTV怀旧剧场HD"],
+    "怀旧剧场": ["CCTV-怀旧剧场", "CCTV怀旧剧场", "CCTV怀旧剧场HD", "怀旧剧场高清"],
     "女性时尚": ["CCTV-女性时尚", "CCTV女性时尚", "CCTV女性时尚HD"],
-    "世界地理": ["CCTV-世界地理", "CCTV世界地理", "CCTV世界地理HD"],
+    "世界地理": ["CCTV-世界地理", "CCTV世界地理", "CCTV世界地理HD", "世界地理高清"],
     "央视台球": ["CCTV-央视台球", "CCTV央视台球", "CCTV央视台球HD"],
     "高尔夫网球": ["CCTV-高尔夫网球", "CCTV高尔夫网球", "CCTV央视高网", "CCTV-高尔夫·网球", "央视高网"],
-    "央视文化精品": ["CCTV-央视文化精品", "CCTV央视文化精品", "CCTV文化精品", "CCTV-文化精品", "文化精品"],
+    "央视文化精品": ["CCTV-央视文化精品", "CCTV央视文化精品", "央视精品", "央视文化", "文化精品"],
     "卫生健康": ["CCTV-卫生健康", "CCTV卫生健康"],
     "电视指南": ["CCTV-电视指南", "CCTV电视指南"],
     "农林卫视": ["陕西农林卫视"],
     "内蒙古卫视": ["内蒙古", "内蒙卫视"],
     "康巴卫视": ["四川康巴卫视"],
     "山东教育卫视": ["山东教育"],
-    "中国教育1台": ["CETV1", "中国教育一台", "中国教育1", "CETV", "CETV-1", "中国教育"],
+    "中国教育1台": ["CETV1", "中国教育一台", "中国教育1", "CETV", "CETV1高清", "中国教育"],
     "中国教育2台": ["CETV2", "中国教育二台", "中国教育2", "CETV-2 空中课堂", "CETV-2"],
     "中国教育3台": ["CETV3", "中国教育三台", "中国教育3", "CETV-3 教育服务", "CETV-3"],
     "中国教育4台": ["CETV4", "中国教育四台", "中国教育4", "中国教育电视台第四频道", "CETV-4"],
     "东南卫视": ["福建东南"],
-    "CHC动作电影": ["CHC动作电影高清"],
-    "CHC家庭影院": ["CHC家庭电影高清"],
-    "CHC影迷电影": ["CHC高清电影", "CHC-影迷电影", "影迷电影", "chc高清电影"],
+    "CHC动作电影": ["CHC动作电影高清", "动作电影"],
+    "CHC家庭影院": ["CHC家庭电影高清", "家庭影院"],
+    "CHC影迷电影": ["CHC高清电影", "CHC-影迷电影", "影迷电影", "高清电影"],
     "淘电影": ["IPTV淘电影", "北京IPTV淘电影", "北京淘电影"],
     "淘精彩": ["IPTV淘精彩", "北京IPTV淘精彩", "北京淘精彩"],
     "淘剧场": ["IPTV淘剧场", "北京IPTV淘剧场", "北京淘剧场"],
@@ -500,6 +503,33 @@ def clean_loop():
     while True:
         time.sleep(CLEAN_INTERVAL)
         clean_garbage()
+
+def clean_logs_loop():
+    """清空日志文件循环任务"""
+    LOG_FILES = [
+        "/app/kakaxi.log",
+        "/tmp/ffprobe.log",
+        "/var/log/aiohttp.log"
+    ]
+    CLEAN_LOG_INTERVAL = 6 * 3600
+    
+    print(f"🔄 日志清理任务已启动，首次执行将在 {datetime.now() + timedelta(seconds=CLEAN_LOG_INTERVAL)} 开始（{get_elapsed_time()}）")
+    while True:
+        time.sleep(CLEAN_LOG_INTERVAL)
+        print(f"\n📢 开始执行日志清理任务 - {get_elapsed_time()}")
+        
+        log_clean_count = 0
+        try:
+            for log_file in LOG_FILES:
+                if os.path.exists(log_file):
+                    with open(log_file, "w", encoding="utf-8") as f:
+                        f.write("")
+                    log_clean_count += 1
+            print(f"✅ 清空日志完成，共清理 {log_clean_count} 个日志文件（{get_elapsed_time()}）")
+        except Exception as e:
+            print(f"⚠️ 清空日志失败: {e}（{get_elapsed_time()}）")
+        
+        print(f"✅ 日志清理任务全部完成（{get_elapsed_time()}）\n")
 
 def init_placeholder():
     """初始化占位文件"""
@@ -726,6 +756,10 @@ def serve_list():
     if os.path.exists(OUTPUT_FILE):
         response = make_response(send_file(OUTPUT_FILE, mimetype="text/plain"))
         response.headers["Content-Type"] = "text/plain; charset=utf-8"
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        response.headers["Access-Control-Allow-Origin"] = "*"
         return response
     else:
         init_placeholder()
@@ -739,6 +773,7 @@ if __name__ == "__main__":
     
     threading.Thread(target=background_loop, daemon=True).start()
     threading.Thread(target=clean_loop, daemon=True).start()
+    threading.Thread(target=clean_logs_loop, daemon=True).start()
     
     print(f"🌐 Flask服务启动，监听端口：5000（{get_elapsed_time()}）")
     app.run(
@@ -749,5 +784,6 @@ if __name__ == "__main__":
         debug=False,
         use_reloader=False
     )
+
 
 

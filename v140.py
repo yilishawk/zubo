@@ -13,13 +13,17 @@ import resource
 import weakref
 import glob
 import logging
+import pytz
 from datetime import timedelta
 from urllib.parse import urljoin
-from flask import Flask, send_file, make_response, redirect, Response
+from flask import Flask, send_file, make_response, Response
 
-SERVICE_START_TIME = None
+SERVICE_START_TIME = time.time()
+RLIMIT_SUPPORTED = True
+STOP_EVENT = threading.Event()
+
 IS_FIRST_RUN = True
-FIRST_RUN_LIMIT = 40000
+FIRST_RUN_LIMIT = 20000
 MAX_SOURCES_TO_WRITE = 8
 MAX_SOURCES_PER_CHANNEL = 30
 PORT = 5000
@@ -27,27 +31,22 @@ UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", 21600))
 CLEAN_INTERVAL = 7200
 OUTPUT_FILE = "list.txt"
 PLACEHOLDER_FILE = "list_placeholder.txt"
-import psutil, os
+
 CPU = psutil.cpu_count(logical=True) or 2
 AUTO_FFPROBE = max(4, min(12, CPU // 2))
 FFPROBE_CONCURRENCY = int(os.getenv("FFPROBE_CONCURRENCY", AUTO_FFPROBE))
-JSON_CONCURRENCY = int(os.getenv("JSON_CONCURRENCY", FFPROBE_CONCURRENCY * 15))
+JSON_CONCURRENCY = int(os.getenv("JSON_CONCURRENCY", FFPROBE_CONCURRENCY * 10))
 CONCURRENCY = int(os.getenv("CONCURRENCY", JSON_CONCURRENCY + 60))
-FFPROBE_TIMEOUT = int(os.getenv("FFPROBE_TIMEOUT", 7))
+FFPROBE_TIMEOUT = int(os.getenv("FFPROBE_TIMEOUT", 12))
 
 def get_elapsed_time():
-    if not SERVICE_START_TIME:
-        return "00-00"
     elapsed = time.time() - SERVICE_START_TIME
-    hours = int(elapsed // 3600)
-    minutes = int((elapsed % 3600) // 60)
-    seconds = int(elapsed % 60)
-    if hours > 0:
-        return f"{hours:02d}-{minutes:02d}-{seconds:02d}"
-    else:
-        return f"{minutes:02d}-{seconds:02d}"
+    h = int(elapsed // 3600)
+    m = int((elapsed % 3600) // 60)
+    s = int(elapsed % 60)
+    return f"{h:02d}-{m:02d}-{s:02d}" if h else f"{m:02d}-{s:02d}"
 
-print(f"📌 CPU核心数：{CPU} → 自动适配ffprobe并发：{FFPROBE_CONCURRENCY}，JSON并发：{JSON_CONCURRENCY}（{get_elapsed_time()}）")
+print(f"📌 CPU核心数：{CPU} → ffprobe并发 {FFPROBE_CONCURRENCY}（{get_elapsed_time()}）")
 
 BASE_URLS = [
     "http://61.156.228.1:8154",
@@ -356,33 +355,16 @@ CHANNEL_MAPPING = {
     "中国天气": ["中国天气频道", "中国天气HD"],
 }
 
-def get_elapsed_time():
-    """任务计时"""
-    if not SERVICE_START_TIME:
-        return "00-00"
-    
-    elapsed = time.time() - SERVICE_START_TIME
-    hours = int(elapsed // 3600)
-    minutes = int((elapsed % 3600) // 60)
-    seconds = int(elapsed % 60)
-    
-    if hours > 0:
-        return f"{hours:02d}-{minutes:02d}-{seconds:02d}"
-    else:
-        return f"{minutes:02d}-{seconds:02d}"
-
 def force_gc():
-    """强制垃圾回收，清理内存碎片"""
     gc.collect()
     gc.collect()
     mem = psutil.virtual_memory()
     print(f"📊 内存回收后：已用 {mem.percent}% | 可用 {mem.available/1024/1024:.0f}MB（{get_elapsed_time()}）")
 
 async def safe_session_close(session):
-    """安全关闭aiohttp会话"""
     try:
         await session.close()
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.3)
     except:
         pass
     del session
@@ -391,145 +373,88 @@ async def safe_session_close(session):
 app = Flask(__name__)
 
 def fix_placeholder_response():
-    """占位文件"""
     with open(PLACEHOLDER_FILE, "r", encoding="utf-8") as f:
         content = f.read()
-    response = make_response(content)
-    response.headers["Content-Type"] = "text/plain; charset=utf-8"
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    response.headers["Pragma"] = "no-cache"
-    return response
+    resp = make_response(content)
+    resp.headers["Content-Type"] = "text/plain; charset=utf-8"
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 
 async def probe_has_video(url):
-    """检测是否包含有效视频流"""
     proc = None
     try:
         proc = await asyncio.create_subprocess_exec(
-            "ffprobe",
-            "-v", "error",
+            "ffprobe", "-v", "error",
             "-show_entries", "stream=codec_type,width,height",
-            "-of", "json",
-            "-i", url,
+            "-of", "json", "-i", url,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=FFPROBE_TIMEOUT)
-        
+        out, _ = await asyncio.wait_for(proc.communicate(), timeout=FFPROBE_TIMEOUT)
         if proc.returncode is None:
             proc.kill()
         await proc.wait()
-        
         if proc.returncode != 0:
             return False
-        
-        ffprobe_data = json.loads(stdout.decode('utf-8', errors='ignore'))
-        streams = ffprobe_data.get("streams", [])
-        for stream in streams:
-            if stream.get("codec_type") == "video" and stream.get("width", 0) > 0 and stream.get("height", 0) > 0:
+        data = json.loads(out.decode(errors="ignore"))
+        for s in data.get("streams", []):
+            if s.get("codec_type") == "video" and s.get("width", 0) > 0:
                 return True
         return False
     except:
+        return False
+    finally:
         if proc and proc.returncode is None:
             try:
                 proc.kill()
                 await proc.wait()
             except:
                 pass
-        return False
-    finally:
         del proc
 
 def clean_garbage():
-    """清理进程+文件+内存"""
-    print(f"\n📢 开始执行2小时清理任务 - {get_elapsed_time()}")
-    
-    zombie_count = 0
-    try:
-        for proc in psutil.process_iter(['pid', 'status']):
-            try:
-                if proc.info['status'] == psutil.STATUS_ZOMBIE:
-                    proc.kill()
-                    zombie_count += 1
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
-        print(f"✅ 清理僵尸进程完成，共删除 {zombie_count} 个（{get_elapsed_time()}）")
-    except Exception as e:
-        print(f"⚠️ 清理僵尸进程失败: {e}（{get_elapsed_time()}）")
+    global RLIMIT_SUPPORTED
+    print(f"\n🧹 清理任务开始（{get_elapsed_time()}）")
 
-    temp_files = [
-        OUTPUT_FILE + ".tmp",
-        PLACEHOLDER_FILE + ".tmp",
-        "/tmp/ffprobe*",
-        "/tmp/aiohttp*"
-    ]
+    if RLIMIT_SUPPORTED:
+        try:
+            resource.setrlimit(resource.RLIMIT_AS, (1024**3, 1024**3))
+            print(f"✅ 设置内存上限为1G（{get_elapsed_time()}）")
+        except:
+            RLIMIT_SUPPORTED = False
+            print("⚠️ setrlimit 不支持，后续跳过")
+
+    temp_files = glob.glob("/tmp/*.ffprobe") + glob.glob("/tmp/ffprobe*") + glob.glob("/tmp/aiohttp*")
     file_count = 0
-    try:
-        for temp_file in temp_files:
-            if "*" in temp_file:
-                import glob
-                for f in glob.glob(temp_file):
-                    os.remove(f)
-                    file_count += 1
-            elif os.path.exists(temp_file):
-                os.remove(temp_file)
-                file_count += 1
-        print(f"✅ 清理临时文件完成，共删除 {file_count} 个（{get_elapsed_time()}）")
-    except Exception as e:
-        print(f"⚠️ 清理临时文件失败: {e}（{get_elapsed_time()}）")
+    for f in temp_files:
+        try:
+            os.remove(f)
+            file_count += 1
+        except:
+            pass
+    print(f"✅ 清理临时文件 {file_count} 个（{get_elapsed_time()}）")
 
-    try:
-        resource.setrlimit(resource.RLIMIT_AS, (1024*1024*1024, 1024*1024*1024))
-        print(f"✅ 设置Python进程内存上限为1G（{get_elapsed_time()}）")
-    except:
-        print(f"⚠️ 内存限制设置失败（{get_elapsed_time()}）")
+    if os.name == "posix":
+        try:
+            for proc in psutil.process_iter(['pid', 'cmdline']):
+                try:
+                    if 'ffprobe' in proc.info['cmdline'] and str(os.getpid()) in ' '.join(proc.info['cmdline']):
+                        proc.kill()
+                        proc.wait()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            print(f"✅ 清理ffprobe进程完成（{get_elapsed_time()}）")
+        except:
+            pass
 
-    try:
-        if os.name == 'posix':
-            import ctypes
-            libc = ctypes.CDLL("libc.so.6")
-            libc.malloc_trim(0)
-        force_gc()
-        print(f"✅ 清理内存碎片完成（{get_elapsed_time()}）")
-    except:
-        print(f"⚠️ 清理内存碎片失败（{get_elapsed_time()}）")
-    
-    mem = psutil.virtual_memory()
-    print(f"📊 清理完成后内存使用：{mem.percent}%（{get_elapsed_time()}）")
-    print(f"✅ 2小时清理任务全部完成（{get_elapsed_time()}）\n")
+    force_gc()
+    print(f"✅ 清理任务完成（{get_elapsed_time()}）\n")
 
 def clean_loop():
-    """2小时清理一次的循环任务"""
-    print(f"🔄 2小时清理任务已启动，首次执行将在 {datetime.datetime.now() + datetime.timedelta(seconds=CLEAN_INTERVAL)} 开始（{get_elapsed_time()}）")
-    while True:
-        time.sleep(CLEAN_INTERVAL)
+    while not STOP_EVENT.wait(CLEAN_INTERVAL):
         clean_garbage()
-
-def clean_logs_loop():
-    """清空日志文件循环任务"""
-    LOG_FILES = [
-        "/app/kakaxi.log",
-        "/tmp/ffprobe.log",
-        "/var/log/aiohttp.log"
-    ]
-    CLEAN_LOG_INTERVAL = 6 * 3600
-    
-    print(f"🔄 日志清理任务已启动，首次执行将在 {datetime.now() + timedelta(seconds=CLEAN_LOG_INTERVAL)} 开始（{get_elapsed_time()}）")
-    while True:
-        time.sleep(CLEAN_LOG_INTERVAL)
-        print(f"\n📢 开始执行日志清理任务 - {get_elapsed_time()}")
-        
-        log_clean_count = 0
-        try:
-            for log_file in LOG_FILES:
-                if os.path.exists(log_file):
-                    with open(log_file, "w", encoding="utf-8") as f:
-                        f.write("")
-                    log_clean_count += 1
-            print(f"✅ 清空日志完成，共清理 {log_clean_count} 个日志文件（{get_elapsed_time()}）")
-        except Exception as e:
-            print(f"⚠️ 清空日志失败: {e}（{get_elapsed_time()}）")
-        
-        print(f"✅ 日志清理任务全部完成（{get_elapsed_time()}）\n")
 
 def init_placeholder():
     """初始化占位文件"""
@@ -544,211 +469,149 @@ def init_placeholder():
         os.remove(OUTPUT_FILE)
     print(f"📝 占位文件初始化完成（{get_elapsed_time()}）")
 
-def is_valid_stream(url: str) -> bool:
-    """验证流地址"""
-    if url.startswith(("rtp://", "udp://", "rtsp://")):
-        return False
-    if any(x in url for x in ("239.", "/paiptv/", "/00/SNM/", "/00/CHANNEL")):
-        return False
-    return any(ext in url for ext in (".m3u8", ".ts", ".flv", ".mp4"))
-
 def generate_json_urls():
-    """生成JSON URL"""
-    global IS_FIRST_RUN
+    """IP端口解析"""
     urls = []
     for base in BASE_URLS:
-        ip_start = base.find("//") + 2
-        ip_end = base.find(":", ip_start)
-        base_url = base[:ip_start]
-        prefix = base[ip_start:ip_end].rsplit(".", 1)[0]
-        port = base[ip_end:]
-        for i in range(1, 256):
-            for path in JSON_PATHS:
-                urls.append(f"{base_url}{prefix}.{i}{port}{path}")
-    
+        try:
+            ip_start = base.find("//") + 2
+            ip_end = base.find(":", ip_start)
+            if ip_end == -1:
+                ip = base[ip_start:]
+                port = ":80"
+            else:
+                ip = base[ip_start:ip_end]
+                port = base[ip_end:]
+            ip_prefix = ip.rsplit(".", 1)[0]
+            for i in range(1, 256):
+                for path in JSON_PATHS:
+                    urls.append(f"http://{ip_prefix}.{i}{port}{path}")
+        except Exception as e:
+            print(f"⚠️ 解析BASE_URL {base} 失败：{e}")
     if IS_FIRST_RUN:
         original_count = len(urls)
         urls = urls[:FIRST_RUN_LIMIT]
         print(f"⚠️ 首次启动限制接口数量：{len(urls)}/{original_count}（{get_elapsed_time()}）")
     else:
-        print(f"📊 生成JSON接口列表完成，共生成 {len(urls)} 个待检测接口（{get_elapsed_time()}）")
+        print(f"📊 生成JSON接口列表完成，共 {len(urls)} 个（{get_elapsed_time()}）")
     return urls
 
-async def check_json(session, url, sem):
-    """检查JSON接口"""
-    async with sem:
-        try:
-            async with session.get(url, timeout=2) as r:
-                return url if r.status == 200 else None
-        except:
-            return None
-
-async def fetch_channels(session, url, sem):
-    """爬取频道"""
-    async with sem:
-        try:
-            async with session.get(url, timeout=3) as r:
-                data = await r.json()
-                result = []
-                for item in data.get("data", []):
-                    name = item.get("name")
-                    u = item.get("url")
-                    if not name or not u or "," in u:
-                        continue
-                    if not u.startswith("http"):
-                        u = urljoin(url, u)
-                    result.append((name.strip(), u.strip()))
-                return result
-        except:
-            return []
-
-def normalize_name(name: str) -> str:
-    """标准化频道名"""
-    n = name.strip()
-    n = n.replace("＋", "+").replace("（", "(").replace("）", ")")
-    for std, aliases in CHANNEL_MAPPING.items():
-        for a in aliases:
-            a2 = a.replace("＋", "+").replace("（", "(").replace("）", ")")
-            if n.lower() == a2.lower():
-                return std
-    return n
-
-def group_by_channel(channels):
-    """分组频道"""
-    grouped = {}
-    for name, url in channels:
-        std_name = normalize_name(name)
-        if std_name not in grouped:
-            grouped[std_name] = []
-        if url not in grouped[std_name]:
-            grouped[std_name].append(url)
-    return grouped
-
-async def measure_channel_sources(channel_dict):
-    """检测有效频道源"""
-    print(f"🔍 开始检测有效频道源，共待检测 {len(channel_dict)} 个频道（{get_elapsed_time()}）")
-    sem = asyncio.Semaphore(FFPROBE_CONCURRENCY)
-    measured = {}
-    processed_count = 0
-    total_channels = len(channel_dict)
-    
-    for channel_name, urls in channel_dict.items():
-        urls_to_check = urls[:MAX_SOURCES_PER_CHANNEL]
-        valid_urls = []
-        
-        async def check_single_url(url):
-            async with sem:
-                return url if await probe_has_video(url) else None
-        
-        check_tasks = [check_single_url(url) for url in urls_to_check]
-        valid_results = await asyncio.gather(*check_tasks)
-        valid_urls = [url for url in valid_results if url is not None]
-        
-        if valid_urls:
-            measured[channel_name] = valid_urls[:MAX_SOURCES_TO_WRITE]
-            print(f"📌 {channel_name} 检测到 {len(valid_urls)} 个有效源，保留前 {len(measured[channel_name])} 个（{get_elapsed_time()}）")
-        
-        processed_count += 1
-        if processed_count % 10 == 0:
-            print(f"🔄 频道源检测进度：{processed_count}/{total_channels}（{get_elapsed_time()}）")
-            force_gc()
-    
-    print(f"✅ 有效频道源检测完成，保留 {len(measured)} 个频道（{get_elapsed_time()}）")
-    return measured
-
 async def generate_itvlist():
-    """生成节目单"""
     global IS_FIRST_RUN
     run_type = "首次启动" if IS_FIRST_RUN else "定时更新"
     print(f"🚀 开始生成节目单（{run_type}）（{get_elapsed_time()}）")
-    
-    force_gc()
-    
-    session = None
+
+    timeout = aiohttp.ClientTimeout(total=30)
+    connector = aiohttp.TCPConnector(
+        limit=50,
+        limit_per_host=10,
+        ttl_dns_cache=300,
+        enable_cleanup_closed=True
+    )
+
+    session = aiohttp.ClientSession(timeout=timeout, connector=connector)
+
     try:
-        timeout = aiohttp.ClientTimeout(total=30)
-        connector = aiohttp.TCPConnector(
-            limit=50,
-            limit_per_host=10,
-            ttl_dns_cache=300,
-            enable_cleanup_closed=True
-        )
-        session = aiohttp.ClientSession(timeout=timeout, connector=connector)
-        
-        json_urls = generate_json_urls()
-        sem_json = asyncio.Semaphore(JSON_CONCURRENCY)
-        check_tasks = [check_json(session, url, sem_json) for url in json_urls]
-        valid_json_urls = [u for u in await asyncio.gather(*check_tasks) if u]
-        print(f"✅ 检测到 {len(valid_json_urls)} 个可用的JSON接口（{get_elapsed_time()}）")
-        
-        sem_fetch = asyncio.Semaphore(CONCURRENCY)
-        fetch_tasks = [fetch_channels(session, url, sem_fetch) for url in valid_json_urls]
+        urls = generate_json_urls()
+        sem = asyncio.Semaphore(JSON_CONCURRENCY)
+
+        async def check(url):
+            async with sem:
+                try:
+                    async with session.get(url, timeout=2) as r:
+                        return url if r.status == 200 else None
+                except:
+                    return None
+
+        valid_urls = [u for u in await asyncio.gather(*[check(u) for u in urls]) if u]
+        print(f"✅ 检测到 {len(valid_urls)} 个可用JSON接口（{get_elapsed_time()}）")
+
         all_channels = []
-        for channels in await asyncio.gather(*fetch_tasks):
-            all_channels.extend(channels)
-        
-        channel_dict = group_by_channel(all_channels)
-        del all_channels
-        force_gc()
-        print(f"✅ 爬取到 {len(channel_dict)} 个唯一频道（{get_elapsed_time()}）")
-        
-        measured = await measure_channel_sources(channel_dict)
-        del channel_dict
-        force_gc()
-        
-        import pytz
+        sem2 = asyncio.Semaphore(CONCURRENCY)
+
+        async def fetch(u):
+            async with sem2:
+                try:
+                    async with session.get(u, timeout=3) as r:
+                        j = await r.json()
+                        res = []
+                        for x in j.get("data", []):
+                            name = x.get("name", "").strip()
+                            url = x.get("url", "").strip()
+                            if not name or not url or "," in url:
+                                continue
+                            if not url.startswith("http"):
+                                url = urljoin(u, url)
+                            res.append((name, url))
+                        return res
+                except:
+                    return []
+
+        for part in await asyncio.gather(*[fetch(u) for u in valid_urls]):
+            all_channels.extend(part)
+
+        grouped = {}
+        for n, u in all_channels:
+            std_name = n.strip().replace("＋", "+").replace("（", "(").replace("）", ")")
+            for std, aliases in CHANNEL_MAPPING.items():
+                if std_name.lower() in [a.lower() for a in aliases]:
+                    std_name = std
+                    break
+            grouped.setdefault(std_name, []).append(u)
+        print(f"✅ 爬取到 {len(grouped)} 个唯一频道（{get_elapsed_time()}）")
+
+        measured = {}
+        sem3 = asyncio.Semaphore(FFPROBE_CONCURRENCY)
+        processed = 0
+        total = len(grouped)
+
+        for ch, urls in grouped.items():
+            async def chk(u):
+                async with sem3:
+                    return u if await probe_has_video(u) else None
+            check_urls = urls[:MAX_SOURCES_PER_CHANNEL]
+            res = [x for x in await asyncio.gather(*[chk(u) for u in check_urls]) if x]
+            if res:
+                measured[ch] = res[:MAX_SOURCES_TO_WRITE]
+            processed += 1
+            if processed % 10 == 0:
+                print(f"🔄 检测进度：{processed}/{total}（{get_elapsed_time()}）")
+
         tz = pytz.timezone('Asia/Shanghai')
         now = datetime.datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
         tmp_file = OUTPUT_FILE + ".tmp"
         with open(tmp_file, "w", encoding="utf-8") as f:
             f.write(f"更新时间,#genre#\n{now},https://kakaxi-1.asia/LOGO/Disclaimer.mp4\n\n")
-            
-            for cat, channel_list in CHANNEL_CATEGORIES.items():
+            for cat, cl in CHANNEL_CATEGORIES.items():
                 f.write(f"{cat},#genre#\n")
-                for channel in channel_list:
-                    if channel in measured and measured[channel]:
-                        for source in measured[channel]:
-                            f.write(f"{channel},{source}\n")
+                for c in cl:
+                    for s in measured.get(c, []):
+                        f.write(f"{c},{s}\n")
                 f.write("\n")
-        
+
         os.replace(tmp_file, OUTPUT_FILE)
-        
         if os.path.exists(PLACEHOLDER_FILE):
             os.remove(PLACEHOLDER_FILE)
-    
+
     finally:
-        if session:
-            await safe_session_close(session)
-        if 'measured' in locals():
-            del measured
-        force_gc()
-    
-    if IS_FIRST_RUN:
-        print(f"✅ 首次启动节目单生成完成: list.txt（{get_elapsed_time()}）")
-        IS_FIRST_RUN = False
-    else:
-        print(f"✅ 定时更新节目单生成完成: list.txt（{get_elapsed_time()}）")
-    print(f"🎉 节目单生成任务全部完成（{run_type}），每个频道最多保留 {MAX_SOURCES_TO_WRITE} 个源（{get_elapsed_time()}）\n")
+        await safe_session_close(session)
+
+    IS_FIRST_RUN = False
+    print(f"✅ {run_type} 生成完成，保留 {len(measured)} 个频道（{get_elapsed_time()}）\n")
 
 def background_loop():
-    """后台循环"""
-    print(f"🔄 节目单更新任务已启动，首次生成开始...（{get_elapsed_time()}）")
-    first_run = True
-    while True:
+    """节目单更新后台线程"""
+    print(f"🔄 节目单更新任务已启动（{get_elapsed_time()}）")
+    while not STOP_EVENT.is_set():
         try:
             asyncio.run(generate_itvlist())
-            if first_run:
-                first_run = False
-                print(f"\n⏳ 首次生成完成，下次全量更新将在 {UPDATE_INTERVAL/3600} 小时后...（{get_elapsed_time()}）")
-            else:
-                print(f"\n⏳ 定时更新完成，下次全量更新将在 {UPDATE_INTERVAL/3600} 小时后...（{get_elapsed_time()}）")
-            time.sleep(UPDATE_INTERVAL)
+            if STOP_EVENT.wait(UPDATE_INTERVAL):
+                break
         except Exception as e:
-            print(f"❌ 生成节目单异常: {e}（{get_elapsed_time()}）")
-            if not os.path.exists(PLACEHOLDER_FILE):
-                init_placeholder()
-            time.sleep(60)
-            force_gc()
+            print(f"❌ 生成节目单异常：{e}（{get_elapsed_time()}）")
+            if STOP_EVENT.wait(60):
+                break
+        force_gc()
 
 @app.route("/list.txt")
 def serve_list():
@@ -761,29 +624,31 @@ def serve_list():
         response.headers["Expires"] = "0"
         response.headers["Access-Control-Allow-Origin"] = "*"
         return response
-    else:
-        init_placeholder()
-        return fix_placeholder_response()
+    init_placeholder()
+    return fix_placeholder_response()
+
+def handle_exit(signum, frame):
+    print(f"\n📤 收到退出信号，正在停止服务...（{get_elapsed_time()}）")
+    STOP_EVENT.set()
+    time.sleep(2)
+    print(f"✅ 服务已停止（{get_elapsed_time()}）")
+    os._exit(0)
 
 if __name__ == "__main__":
-    SERVICE_START_TIME = time.time()
-    print(f"🚀 IPTV节目单服务启动 （{get_elapsed_time()}）")
-    
+    import signal
+    signal.signal(signal.SIGINT, handle_exit)
+    signal.signal(signal.SIGTERM, handle_exit)
+
     init_placeholder()
-    
+
     threading.Thread(target=background_loop, daemon=True).start()
     threading.Thread(target=clean_loop, daemon=True).start()
-    threading.Thread(target=clean_logs_loop, daemon=True).start()
-    
-    print(f"🌐 Flask服务启动，监听端口：5000（{get_elapsed_time()}）")
+
+    print(f"🌐 Flask服务启动，监听端口：{PORT}（{get_elapsed_time()}）")
     app.run(
         host="0.0.0.0",
         port=PORT,
-        threaded=True,
-        processes=1,
         debug=False,
-        use_reloader=False
+        use_reloader=False,
+        threaded=True
     )
-
-
-

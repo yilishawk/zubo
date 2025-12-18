@@ -6,6 +6,7 @@ RUN apt update && apt install -y --no-install-recommends \
     ffmpeg \
     libc6-dev \
     gcc \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -15,4 +16,4 @@ COPY v140.py .
 
 EXPOSE 5000
 
-CMD ["python", "-X", "gc_threshold=1000000", "v140.py"]
+CMD ["python", "-u", "-X", "gc_threshold=1000000", "v140.py"]

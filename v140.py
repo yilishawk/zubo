@@ -33,11 +33,11 @@ OUTPUT_FILE = "list.txt"
 PLACEHOLDER_FILE = "list_placeholder.txt"
 
 CPU = psutil.cpu_count(logical=True) or 2
-AUTO_FFPROBE = max(4, min(12, CPU // 2))
+AUTO_FFPROBE = max(4, min(8, CPU // 2))
 FFPROBE_CONCURRENCY = int(os.getenv("FFPROBE_CONCURRENCY", AUTO_FFPROBE))
-JSON_CONCURRENCY = int(os.getenv("JSON_CONCURRENCY", FFPROBE_CONCURRENCY * 10))
-CONCURRENCY = int(os.getenv("CONCURRENCY", JSON_CONCURRENCY + 60))
-FFPROBE_TIMEOUT = int(os.getenv("FFPROBE_TIMEOUT", 12))
+JSON_CONCURRENCY = int(os.getenv("JSON_CONCURRENCY", FFPROBE_CONCURRENCY * 4))
+CONCURRENCY = int(os.getenv("CONCURRENCY", JSON_CONCURRENCY + 100))
+FFPROBE_TIMEOUT = int(os.getenv("FFPROBE_TIMEOUT", 6))
 
 def get_elapsed_time():
     elapsed = time.time() - SERVICE_START_TIME
@@ -652,3 +652,4 @@ if __name__ == "__main__":
         use_reloader=False,
         threaded=True
     )
+

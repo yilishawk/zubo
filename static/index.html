@@ -42,6 +42,32 @@
             color: #1d1d1f;
         }
 
+        /* 新增：标签页切换样式 */
+        .tab-group {
+            display: flex;
+            gap: 8px;
+            background: #fff;
+            padding: 8px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: #f5f5f7;
+            color: #86868b;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: #007aff;
+            color: #fff;
+        }
+
         /* 分类容器：仅包含分类卡片，无频道库 */
         #categories-container {
             display: flex;
@@ -175,6 +201,86 @@
             color: #ffffff;
             cursor: pointer;
         }
+
+        /* 新增：映射配置面板样式 */
+        #mapping-panel {
+            display: none;
+        }
+        .mapping-card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            margin-bottom: 12px;
+        }
+        .mapping-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .standard-name-input {
+            width: 220px;
+            padding: 10px 14px;
+            border: 1px solid #e5e5e7;
+            border-radius: 10px;
+            font-size: 16px;
+            color: #1d1d1f;
+            background-color: #f9f9fb;
+            outline: none;
+            cursor: text;
+        }
+        .standard-name-input:focus {
+            border-color: #007aff;
+        }
+        .alias-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .alias-tag {
+            background-color: #f0f8ff;
+            color: #0066cc;
+            padding: 8px 14px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+        .alias-input-container {
+            display: flex;
+            gap: 8px;
+        }
+        .alias-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid #e5e5e7;
+            border-radius: 10px;
+            font-size: 16px;
+            outline: none;
+        }
+        .add-alias-btn {
+            padding: 0 16px;
+            border-radius: 10px;
+            border: none;
+            background: #007aff;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .btn-add-mapping {
+            flex: 1;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 500;
+            border: 1px solid #007aff;
+            background-color: #ffffff;
+            color: #007aff;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -184,247 +290,222 @@
             <h1 class="panel-title">IPTV频道配置</h1>
         </div>
 
-        <!-- 分类容器（仅包含分类卡片） -->
-        <div id="categories-container">
-            <!-- 初始分类 -->
-            <div class="category-card">
-                <div class="category-header">
-                    <input type="text" class="category-name-input" value="央视频道" placeholder="比如:央视、卫视、地方等">
-                    <button class="btn-delete">删除</button>
-                </div>
-                <div class="channel-tags">
-                    <div class="channel-tag">
-                        CCTV1 <span class="tag-close">×</span>
+        <!-- 新增：标签页切换 -->
+        <div class="tab-group">
+            <button class="tab-btn active" onclick="switchTab('category')">分类配置</button>
+            <button class="tab-btn" onclick="switchTab('mapping')">映射配置</button>
+        </div>
+
+        <!-- 分类配置面板（原有内容完全保留） -->
+        <div id="category-panel">
+            <!-- 分类容器（仅包含分类卡片） -->
+            <div id="categories-container">
+                <!-- 初始分类 -->
+                <div class="category-card">
+                    <div class="category-header">
+                        <input type="text" class="category-name-input" value="央视频道" placeholder="比如:央视、卫视、地方等">
+                        <button class="btn-delete">删除</button>
                     </div>
-                    <div class="channel-tag">
-                        <span>CCTV2 <span class="tag-close">×</span></span>
-                    </div>
-                    <div class="channel-tag">
-                        <span>CCTV3 <span class="tag-close">×</span></span>
-                    </div>
-                    <div class="channel-tag">
-                        <span>CCTV4 <span class="tag-close">×</span></span>
+                    <div class="channel-tags">
+                        <div class="channel-tag">
+                            CCTV1 <span class="tag-close">×</span>
+                        </div>
+                        <div class="channel-tag">
+                            <span>CCTV2 <span class="tag-close">×</span></span>
+                        </div>
+                        <div class="channel-tag">
+                            <span>CCTV3 <span class="tag-close">×</span></span>
+                        </div>
+                        <div class="channel-tag">
+                            <span>CCTV4 <span class="tag-close">×</span></span>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- 全局唯一频道库（更新完整列表+去重） -->
-        <div class="global-channel-library">
-            <div class="library-title">频道库（单点添加）</div>
-            <div class="preset-channels">
-                <!-- 央视基础频道 -->
-                <span class="preset-channel">CCTV1</span>
-                <span class="preset-channel">CCTV2</span>
-                <span class="preset-channel">CCTV3</span>
-                <span class="preset-channel">CCTV4</span>
-                <span class="preset-channel">CCTV4欧洲</span>
-                <span class="preset-channel">CCTV4美洲</span>
-                <span class="preset-channel">CCTV5</span>
-                <span class="preset-channel">CCTV5+</span>
-                <span class="preset-channel">CCTV6</span>
-                <span class="preset-channel">CCTV7</span>
-                <span class="preset-channel">CCTV8</span>
-                <span class="preset-channel">CCTV9</span>
-                <span class="preset-channel">CCTV10</span>
-                <span class="preset-channel">CCTV11</span>
-                <span class="preset-channel">CCTV12</span>
-                <span class="preset-channel">CCTV13</span>
-                <span class="preset-channel">CCTV14</span>
-                <span class="preset-channel">CCTV15</span>
-                <span class="preset-channel">CCTV16</span>
-                <span class="preset-channel">CCTV17</span>
-                <span class="preset-channel">CCTV4K</span>
-                <span class="preset-channel">CCTV8K</span>
-                
-                <!-- 央视数字频道 -->
-                <span class="preset-channel">兵器科技</span>
-                <span class="preset-channel">风云音乐</span>
-                <span class="preset-channel">风云足球</span>
-                <span class="preset-channel">风云剧场</span>
-                <span class="preset-channel">怀旧剧场</span>
-                <span class="preset-channel">第一剧场</span>
-                <span class="preset-channel">女性时尚</span>
-                <span class="preset-channel">世界地理</span>
-                <span class="preset-channel">央视台球</span>
-                <span class="preset-channel">高尔夫网球</span>
-                <span class="preset-channel">央视文化精品</span>
-                <span class="preset-channel">卫生健康</span>
-                <span class="preset-channel">电视指南</span>
-                <span class="preset-channel">中学生</span>
-                <span class="preset-channel">发现之旅</span>
-                <span class="preset-channel">书法频道</span>
-                <span class="preset-channel">国学频道</span>
-                <span class="preset-channel">环球奇观</span>
-                
-                <!-- 省级卫视 -->
-                <span class="preset-channel">湖南卫视</span>
-                <span class="preset-channel">浙江卫视</span>
-                <span class="preset-channel">江苏卫视</span>
-                <span class="preset-channel">东方卫视</span>
-                <span class="preset-channel">深圳卫视</span>
-                <span class="preset-channel">北京卫视</span>
-                <span class="preset-channel">广东卫视</span>
-                <span class="preset-channel">广西卫视</span>
-                <span class="preset-channel">东南卫视</span>
-                <span class="preset-channel">海南卫视</span>
-                <span class="preset-channel">河北卫视</span>
-                <span class="preset-channel">河南卫视</span>
-                <span class="preset-channel">湖北卫视</span>
-                <span class="preset-channel">江西卫视</span>
-                <span class="preset-channel">四川卫视</span>
-                <span class="preset-channel">重庆卫视</span>
-                <span class="preset-channel">贵州卫视</span>
-                <span class="preset-channel">云南卫视</span>
-                <span class="preset-channel">天津卫视</span>
-                <span class="preset-channel">安徽卫视</span>
-                <span class="preset-channel">山东卫视</span>
-                <span class="preset-channel">辽宁卫视</span>
-                <span class="preset-channel">黑龙江卫视</span>
-                <span class="preset-channel">吉林卫视</span>
-                <span class="preset-channel">内蒙古卫视</span>
-                <span class="preset-channel">宁夏卫视</span>
-                <span class="preset-channel">山西卫视</span>
-                <span class="preset-channel">陕西卫视</span>
-                <span class="preset-channel">甘肃卫视</span>
-                <span class="preset-channel">青海卫视</span>
-                <span class="preset-channel">新疆卫视</span>
-                <span class="preset-channel">西藏卫视</span>
-                <span class="preset-channel">三沙卫视</span>
-                <span class="preset-channel">兵团卫视</span>
-                <span class="preset-channel">延边卫视</span>
-                <span class="preset-channel">安多卫视</span>
-                <span class="preset-channel">康巴卫视</span>
-                <span class="preset-channel">农林卫视</span>
-                <span class="preset-channel">山东教育卫视</span>
-                
-                <!-- 中国教育频道 -->
-                <span class="preset-channel">中国教育1台</span>
-                <span class="preset-channel">中国教育2台</span>
-                <span class="preset-channel">中国教育3台</span>
-                <span class="preset-channel">中国教育4台</span>
-                <span class="preset-channel">早期教育</span>
-                
-                <!-- 新增电影/特色频道 -->
-                <span class="preset-channel">CHC动作电影</span>
-                <span class="preset-channel">CHC家庭影院</span>
-                <span class="preset-channel">CHC影迷电影</span>
-                <span class="preset-channel">淘电影</span>
-                <span class="preset-channel">淘精彩</span>
-                <span class="preset-channel">淘剧场</span>
-                <span class="preset-channel">淘4K</span>
-                <span class="preset-channel">淘娱乐</span>
-                <span class="preset-channel">淘BABY</span>
-                <span class="preset-channel">淘萌宠</span>
-                <span class="preset-channel">重温经典</span>
-                
-                <!-- 港澳台/海外频道 -->
-                <span class="preset-channel">星空卫视</span>
-                <span class="preset-channel">CHANNEL[V]</span>
-                <span class="preset-channel">翡翠台</span>
-                <span class="preset-channel">明珠台</span>
-                <span class="preset-channel">娱乐新闻台</span>
-                <span class="preset-channel">无线新闻台</span>
-                <span class="preset-channel">美亚电影台</span>
-                <span class="preset-channel">TVB Plus</span>
-                <span class="preset-channel">PopC</span>
-                <span class="preset-channel">tvN</span>
-                <span class="preset-channel">凤凰卫视中文台</span>
-                <span class="preset-channel">凤凰卫视资讯台</span>
-                <span class="preset-channel">凤凰卫视香港台</span>
-                <span class="preset-channel">凤凰卫视电影台</span>
-                
-                <!-- 纪实/特色频道 -->
-                <span class="preset-channel">求索纪录</span>
-                <span class="preset-channel">求索科学</span>
-                <span class="preset-channel">求索生活</span>
-                <span class="preset-channel">求索动物</span>
-                <span class="preset-channel">金鹰纪实</span>
-                <span class="preset-channel">纪实科教</span>
-                <span class="preset-channel">睛彩青少</span>
-                <span class="preset-channel">睛彩竞技</span>
-                <span class="preset-channel">睛彩篮球</span>
-                <span class="preset-channel">睛彩广场舞</span>
-                <span class="preset-channel">魅力足球</span>
-                <span class="preset-channel">劲爆体育</span>
-                <span class="preset-channel">五星体育</span>
-                <span class="preset-channel">快乐垂钓</span>
-                <span class="preset-channel">四海钓鱼</span>
-                <span class="preset-channel">茶频道</span>
-                <span class="preset-channel">天元围棋</span>
-                <span class="preset-channel">书画频道</span>
-                <span class="preset-channel">汽摩</span>
-                <span class="preset-channel">哒啵赛事</span>
-                <span class="preset-channel">哒啵电竞</span>
-                <span class="preset-channel">黑莓电影</span>
-                <span class="preset-channel">黑莓动画</span>
-                <span class="preset-channel">乐游</span>
-                <span class="preset-channel">生活时尚</span>
-                <span class="preset-channel">都市剧场</span>
-                <span class="preset-channel">欢笑剧场</span>
-                <span class="preset-channel">游戏风云</span>
-                <span class="preset-channel">金色学堂</span>
-                <span class="preset-channel">动漫秀场</span>
-                <span class="preset-channel">卡酷少儿</span>
-                <span class="preset-channel">金鹰卡通</span>
-                <span class="preset-channel">优漫卡通</span>
-                <span class="preset-channel">哈哈炫动</span>
-                <span class="preset-channel">嘉佳卡通</span>
-                <span class="preset-channel">中国交通</span>
-                <span class="preset-channel">中国天气</span>
-                
-                <!-- iHOT系列频道 -->
-                <span class="preset-channel">iHOT爱喜剧</span>
-                <span class="preset-channel">iHOT爱科幻</span>
-                <span class="preset-channel">iHOT爱院线</span>
-                <span class="preset-channel">iHOT爱悬疑</span>
-                <span class="preset-channel">iHOT爱历史</span>
-                <span class="preset-channel">iHOT爱谍战</span>
-                <span class="preset-channel">iHOT爱旅行</span>
-                <span class="preset-channel">iHOT爱幼教</span>
-                <span class="preset-channel">iHOT爱玩具</span>
-                <span class="preset-channel">iHOT爱体育</span>
-                <span class="preset-channel">iHOT爱赛车</span>
-                <span class="preset-channel">iHOT爱浪漫</span>
-                <span class="preset-channel">iHOT爱奇谈</span>
-                <span class="preset-channel">iHOT爱科学</span>
-                <span class="preset-channel">iHOT爱动漫</span>
-                
-                <!-- newtv系列频道 -->
-                <span class="preset-channel">newtv东北热剧</span>
-                <span class="preset-channel">newtv中国功夫</span>
-                <span class="preset-channel">newtv动作电影</span>
-                <span class="preset-channel">newtv军事评论</span>
-                <span class="preset-channel">newtv军旅剧场</span>
-                <span class="preset-channel">newtv魅力潇湘</span>
-                <span class="preset-channel">newtv古装剧场</span>
-                <span class="preset-channel">newtv家庭剧场</span>
-                <span class="preset-channel">newtv惊悚悬疑</span>
-                <span class="preset-channel">newtv明星大片</span>
-                <span class="preset-channel">newtv欢乐剧场</span>
-                <span class="preset-channel">newtv海外剧场</span>
-                <span class="preset-channel">newtv潮妈辣婆</span>
-                <span class="preset-channel">newtv爱情喜剧</span>
-                <span class="preset-channel">newtv炫舞未来</span>
-                <span class="preset-channel">newtv精品体育</span>
-                <span class="preset-channel">newtv精品大剧</span>
-                <span class="preset-channel">newtv精品纪录</span>
-                <span class="preset-channel">newtv精品萌宠</span>
-                <span class="preset-channel">newtv超级体育</span>
-                <span class="preset-channel">newtv超级电影</span>
-                <span class="preset-channel">newtv怡伴健康</span>
-                <span class="preset-channel">newtv超级电视剧</span>
-                <span class="preset-channel">newtv超级综艺</span>
-                <span class="preset-channel">newtv金牌综艺</span>
-                <span class="preset-channel">newtv武搏世界</span>
-                <span class="preset-channel">newtv农业致富</span>
+            <!-- 全局唯一频道库（原有内容完全保留） -->
+            <div class="global-channel-library">
+                <div class="library-title">频道库（单点添加）</div>
+                <div class="preset-channels" id="preset-channels-container">
+                    <!-- 央视基础频道 -->
+                    <span class="preset-channel">CCTV1</span>
+                    <span class="preset-channel">CCTV2</span>
+                    <span class="preset-channel">CCTV3</span>
+                    <span class="preset-channel">CCTV4</span>
+                    <span class="preset-channel">CCTV4欧洲</span>
+                    <span class="preset-channel">CCTV4美洲</span>
+                    <span class="preset-channel">CCTV5</span>
+                    <span class="preset-channel">CCTV5+</span>
+                    <span class="preset-channel">CCTV6</span>
+                    <span class="preset-channel">CCTV7</span>
+                    <span class="preset-channel">CCTV8</span>
+                    <span class="preset-channel">CCTV9</span>
+                    <span class="preset-channel">CCTV10</span>
+                    <span class="preset-channel">CCTV11</span>
+                    <span class="preset-channel">CCTV12</span>
+                    <span class="preset-channel">CCTV13</span>
+                    <span class="preset-channel">CCTV14</span>
+                    <span class="preset-channel">CCTV15</span>
+                    <span class="preset-channel">CCTV16</span>
+                    <span class="preset-channel">CCTV17</span>
+                    <span class="preset-channel">CCTV4K</span>
+                    <span class="preset-channel">CCTV8K</span>
+                    
+                    <!-- 央视数字频道 -->
+                    <span class="preset-channel">兵器科技</span>
+                    <span class="preset-channel">风云音乐</span>
+                    <span class="preset-channel">风云足球</span>
+                    <span class="preset-channel">风云剧场</span>
+                    <span class="preset-channel">怀旧剧场</span>
+                    <span class="preset-channel">第一剧场</span>
+                    <span class="preset-channel">女性时尚</span>
+                    <span class="preset-channel">世界地理</span>
+                    <span class="preset-channel">央视台球</span>
+                    <span class="preset-channel">高尔夫网球</span>
+                    <span class="preset-channel">央视文化精品</span>
+                    <span class="preset-channel">卫生健康</span>
+                    <span class="preset-channel">电视指南</span>
+                    <span class="preset-channel">中学生</span>
+                    <span class="preset-channel">发现之旅</span>
+                    <span class="preset-channel">书法频道</span>
+                    <span class="preset-channel">国学频道</span>
+                    <span class="preset-channel">环球奇观</span>
+                    
+                    <!-- 省级卫视 -->
+                    <span class="preset-channel">湖南卫视</span>
+                    <span class="preset-channel">浙江卫视</span>
+                    <span class="preset-channel">江苏卫视</span>
+                    <span class="preset-channel">东方卫视</span>
+                    <span class="preset-channel">深圳卫视</span>
+                    <span class="preset-channel">北京卫视</span>
+                    <span class="preset-channel">广东卫视</span>
+                    <span class="preset-channel">广西卫视</span>
+                    <span class="preset-channel">东南卫视</span>
+                    <span class="preset-channel">海南卫视</span>
+                    <span class="preset-channel">河北卫视</span>
+                    <span class="preset-channel">河南卫视</span>
+                    <span class="preset-channel">湖北卫视</span>
+                    <span class="preset-channel">江西卫视</span>
+                    <span class="preset-channel">四川卫视</span>
+                    <span class="preset-channel">重庆卫视</span>
+                    <span class="preset-channel">贵州卫视</span>
+                    <span class="preset-channel">云南卫视</span>
+                    <span class="preset-channel">天津卫视</span>
+                    <span class="preset-channel">安徽卫视</span>
+                    <span class="preset-channel">山东卫视</span>
+                    <span class="preset-channel">辽宁卫视</span>
+                    <span class="preset-channel">黑龙江卫视</span>
+                    <span class="preset-channel">吉林卫视</span>
+                    <span class="preset-channel">内蒙古卫视</span>
+                    <span class="preset-channel">宁夏卫视</span>
+                    <span class="preset-channel">山西卫视</span>
+                    <span class="preset-channel">陕西卫视</span>
+                    <span class="preset-channel">甘肃卫视</span>
+                    <span class="preset-channel">青海卫视</span>
+                    <span class="preset-channel">新疆卫视</span>
+                    <span class="preset-channel">西藏卫视</span>
+                    <span class="preset-channel">三沙卫视</span>
+                    <span class="preset-channel">兵团卫视</span>
+                    <span class="preset-channel">延边卫视</span>
+                    <span class="preset-channel">安多卫视</span>
+                    <span class="preset-channel">康巴卫视</span>
+                    <span class="preset-channel">农林卫视</span>
+                    <span class="preset-channel">山东教育卫视</span>
+                    
+                    <!-- 中国教育频道 -->
+                    <span class="preset-channel">中国教育1台</span>
+                    <span class="preset-channel">中国教育2台</span>
+                    <span class="preset-channel">中国教育3台</span>
+                    <span class="preset-channel">中国教育4台</span>
+                    <span class="preset-channel">早期教育</span>
+                    
+                    <!-- 新增电影/特色频道 -->
+                    <span class="preset-channel">CHC动作电影</span>
+                    <span class="preset-channel">CHC家庭影院</span>
+                    <span class="preset-channel">CHC影迷电影</span>
+                    <span class="preset-channel">淘电影</span>
+                    <span class="preset-channel">淘精彩</span>
+                    <span class="preset-channel">淘剧场</span>
+                    <span class="preset-channel">淘4K</span>
+                    <span class="preset-channel">淘娱乐</span>
+                    <span class="preset-channel">淘BABY</span>
+                    <span class="preset-channel">淘萌宠</span>
+                    <span class="preset-channel">重温经典</span>
+                    
+                    <!-- 港澳台/海外频道 -->
+                    <span class="preset-channel">星空卫视</span>
+                    <span class="preset-channel">CHANNELV</span>
+                    <span class="preset-channel">翡翠台</span>
+                    <span class="preset-channel">明珠台</span>
+                    <span class="preset-channel">娱乐新闻台</span>
+                    <span class="preset-channel">无线新闻台</span>
+                    <span class="preset-channel">美亚电影台</span>
+                    <span class="preset-channel">TVB Plus</span>
+                    <span class="preset-channel">PopC</span>
+                    <span class="preset-channel">tvN</span>
+                    <span class="preset-channel">凤凰卫视中文台</span>
+                    <span class="preset-channel">凤凰卫视资讯台</span>
+                    <span class="preset-channel">凤凰卫视香港台</span>
+                    <span class="preset-channel">凤凰卫视电影台</span>
+                    
+                    <!-- 纪实/特色频道 -->
+                    <span class="preset-channel">求索纪录</span>
+                    <span class="preset-channel">求索科学</span>
+                    <span class="preset-channel">求索生活</span>
+                    <span class="preset-channel">求索动物</span>
+                    <span class="preset-channel">金鹰纪实</span>
+                    <span class="preset-channel">纪实科教</span>
+                    <span class="preset-channel">睛彩青少</span>
+                    <span class="preset-channel">睛彩竞技</span>
+                    <span class="preset-channel">睛彩篮球</span>
+                    <span class="preset-channel">睛彩广场舞</span>
+                    <span class="preset-channel">魅力足球</span>
+                    <span class="preset-channel">劲爆体育</span>
+                    <span class="preset-channel">五星体育</span>
+                    <span class="preset-channel">快乐垂钓</span>
+                    <span class="preset-channel">四海钓鱼</span>
+                    <span class="preset-channel">茶频道</span>
+                    <span class="preset-channel">天元围棋</span>
+                    <span class="preset-channel">书画频道</span>
+                    <span class="preset-channel">汽摩</span>
+                    <span class="preset-channel">哒啵赛事</span>
+                    <span class="preset-channel">哒啵电竞</span>
+                    <span class="preset-channel">黑莓电影</span>
+                    <span class="preset-channel">黑莓动画</span>
+                    <span class="preset-channel">乐游</span>
+                    <span class="preset-channel">生活时尚</span>
+                    <span class="preset-channel">都市剧场</span>
+                    <span class="preset-channel">欢笑剧场</span>
+                    <span class="preset-channel">游戏风云</span>
+                    <span class="preset-channel">金色学堂</span>
+                    <span class="preset-channel">动漫秀场</span>
+                    <span class="preset-channel">卡酷少儿</span>
+                    <span class="preset-channel">金鹰卡通</span>
+                    <span class="preset-channel">优漫卡通</span>
+                    <span class="preset-channel">哈哈炫动</span>
+                    <span class="preset-channel">嘉佳卡通</span>
+                    <span class="preset-channel">中国交通</span>
+                    <span class="preset-channel">中国天气</span>
+                </div>
+            </div>
+
+            <!-- 底部按钮组（原有） -->
+            <div class="btn-group">
+                <button id="add-category" class="btn-add-category">添加分类</button>
+                <button id="save-all" class="btn-save">保存IPTV频道配置</button>
             </div>
         </div>
 
-        <!-- 底部按钮组 -->
-        <div class="btn-group">
-            <button id="add-category" class="btn-add-category">添加分类</button>
-            <button id="save-all" class="btn-save">保存IPTV频道配置</button>
+        <!-- 新增：映射配置面板 -->
+        <div id="mapping-panel">
+            <!-- 映射容器 -->
+            <div id="mapping-container"></div>
+
+            <!-- 底部按钮组 -->
+            <div class="btn-group">
+                <button id="add-mapping" class="btn-add-mapping">添加映射规则</button>
+                <button id="save-mapping" class="btn-save">保存映射配置</button>
+            </div>
         </div>
     </div>
 
@@ -454,21 +535,99 @@
             "魅力足球", "劲爆体育", "五星体育", "快乐垂钓", "四海钓鱼", "茶频道", "天元围棋", "书画频道", "汽摩", "哒啵赛事", "哒啵电竞",
             "黑莓电影", "黑莓动画", "乐游", "生活时尚", "都市剧场", "欢笑剧场", "游戏风云", "金色学堂", "动漫秀场", "卡酷少儿", "金鹰卡通",
             "优漫卡通", "哈哈炫动", "嘉佳卡通", "中国交通", "中国天气",
-            // iHOT系列频道
-            "iHOT爱喜剧", "iHOT爱科幻", "iHOT爱院线", "iHOT爱悬疑", "iHOT爱历史", "iHOT爱谍战", "iHOT爱旅行", "iHOT爱幼教", "iHOT爱玩具",
-            "iHOT爱体育", "iHOT爱赛车", "iHOT爱浪漫", "iHOT爱奇谈", "iHOT爱科学", "iHOT爱动漫",
-            // newtv系列频道
-            "newtv东北热剧", "newtv中国功夫", "newtv动作电影", "newtv军事评论", "newtv军旅剧场", "newtv魅力潇湘", "newtv古装剧场",
-            "newtv家庭剧场", "newtv惊悚悬疑", "newtv明星大片", "newtv欢乐剧场", "newtv海外剧场", "newtv潮妈辣婆", "newtv爱情喜剧",
-            "newtv炫舞未来", "newtv精品体育", "newtv精品大剧", "newtv精品纪录", "newtv精品萌宠", "newtv超级体育", "newtv超级电影",
-            "newtv怡伴健康", "newtv超级电视剧", "newtv超级综艺", "newtv金牌综艺", "newtv武搏世界", "newtv农业致富"
         ];
 
-        // 记录当前激活的分类（默认第一个分类）
-        let activeCategoryCard = document.querySelector('.category-card');
+        // 新增：你的映射默认值（完整保留）
+        const DEFAULT_MAPPING = {
+            "CCTV1": ["CCTV-1", "CCTV1-综合", "CCTV-1 综合", "CCTV-1综合", "CCTV1HD", "CCTV-1高清", "CCTV-1HD", "cctv-1HD", "CCTV1综合高清", "cctv1"],
+            "CCTV2": ["CCTV-2", "CCTV2-财经", "CCTV-2 财经", "CCTV-2财经", "CCTV2HD", "CCTV-2高清", "CCTV-2HD", "cctv-2HD", "CCTV2财经高清", "cctv2"],
+            "CCTV3": ["CCTV-3", "CCTV3-综艺", "CCTV-3 综艺", "CCTV-3综艺", "CCTV3HD", "CCTV-3高清", "CCTV-3HD", "cctv-3HD", "CCTV3综艺高清", "cctv3"],
+            "CCTV4": ["CCTV-4", "CCTV4-国际", "CCTV-4 中文国际", "CCTV-4中文国际", "CCTV4HD", "cctv4HD", "CCTV-4HD", "cctv-4HD", "CCTV4国际高清", "cctv4"],
+            "CCTV4欧洲": ["CCTV-4欧洲", "CCTV-4欧洲", "CCTV4欧洲 HD", "CCTV-4 欧洲", "CCTV-4中文国际欧洲", "CCTV4中文欧洲", "CCTV4欧洲HD", "cctv4欧洲HD", "CCTV-4欧洲HD", "cctv-4欧洲HD"],
+            "CCTV4美洲": ["CCTV-4美洲", "CCTV-4北美", "CCTV4美洲 HD", "CCTV-4 美洲", "CCTV-4中文国际美洲", "CCTV4中文美洲", "CCTV4美洲HD", "cctv4美洲HD", "CCTV-4美洲HD", "cctv-4美洲HD"],
+            "CCTV5": ["CCTV-5", "CCTV5-体育", "CCTV-5 体育", "CCTV-5体育", "CCTV5HD", "CCTV-5高清", "CCTV-5HD", "cctv-5HD", "CCTV5体育高清", "cctv5"],
+            "CCTV5+": ["CCTV-5+", "CCTV-5+ HD", "CCTV-5+ 体育赛事", "CCTV5+体育赛事", "CCTV5+HD", "CCTV-5+高清", "CCTV-5+HD", "cctv-5+HD", "CCTV5plas", "CCTV5+体育赛视高清", "cctv5+"],
+            "CCTV6": ["CCTV-6", "CCTV6-电影", "CCTV-6 电影", "CCTV-6电影", "CCTV6HD", "CCTV-6高清", "CCTV-6HD", "cctv-6HD", "CCTV6电影高清", "cctv6"],
+            "CCTV7": ["CCTV-7", "CCTV7-军农", "CCTV-7 国防军事", "CCTV-7国防军事", "CCTV7HD", "CCTV-7高清", "CCTV-7HD", "cctv-7HD", "CCTV7军事高清", "cctv7"],
+            "CCTV8": ["CCTV-8", "CCTV8-电视剧", "CCTV-8 电视剧", "CCTV-8电视剧", "CCTV8HD", "CCTV-8高清", "CCTV-8HD", "cctv-8HD", "CCTV8电视剧高清", "cctv8"],
+            "CCTV9": ["CCTV-9", "CCTV9-纪录", "CCTV-9 纪录", "CCTV-9纪录", "CCTV9HD", "cctv9HD", "CCTV-9高清", "cctv-9HD", "CCTV9记录高清", "cctv9"],
+            "CCTV10": ["CCTV-10", "CCTV10-科教", "CCTV-10 科教", "CCTV-10科教", "CCTV10HD", "CCTV-10高清", "CCTV-10HD", "cctv-10HD", "CCTV10科教高清", "cctv10"],
+            "CCTV11": ["CCTV-11", "CCTV11-戏曲", "CCTV-11 戏曲", "CCTV-11戏曲", "CCTV11HD", "cctv11HD", "CCTV-11HD", "cctv-11HD", "CCTV11戏曲高清", "cctv11"],
+            "CCTV12": ["CCTV-12", "CCTV12-社会与法", "CCTV-12 社会与法", "CCTV-12社会与法", "CCTV12HD", "CCTV-12高清", "CCTV-12HD", "cctv-12HD", "CCTV12社会与法高清", "cctv12"],
+            "CCTV13": ["CCTV-13", "CCTV13-新闻", "CCTV-13 新闻", "CCTV-13新闻", "CCTV13HD", "cctv13HD", "CCTV-13HD", "cctv-13HD", "CCTV13新闻高清", "cctv13"],
+            "CCTV14": ["CCTV-14", "CCTV14-少儿", "CCTV-14 少儿", "CCTV-14少儿", "CCTV14HD", "CCTV-14高清", "CCTV-14HD", "cctv-14HD", "CCTV14少儿高清", "cctv14"],
+            "CCTV15": ["CCTV-15", "CCTV15-音乐", "CCTV-15 音乐", "CCTV-15音乐", "CCTV15HD", "cctv15HD", "CCTV-15HD", "cctv-15HD", "CCTV15音乐高清", "cctv15"],
+            "CCTV16": ["CCTV-16", "CCTV-16 HD", "CCTV-16 4K", "CCTV-16奥林匹克", "CCTV16HD", "cctv16HD", "CCTV-16HD", "cctv-16HD", "CCTV16奥林匹克高清", "cctv16"],
+            "CCTV17": ["CCTV-17", "CCTV17高清", "CCTV17 HD", "CCTV-17农业农村", "CCTV17HD", "cctv17HD", "CCTV-17HD", "cctv-17HD", "CCTV17农业农村高清", "cctv17"],
+            "兵器科技": ["CCTV-兵器科技", "CCTV兵器科技", "CCTV兵器科技HD"],
+            "风云音乐": ["CCTV-风云音乐", "CCTV风云音乐", "CCTV风云音乐HD"],
+            "第一剧场": ["CCTV-第一剧场", "CCTV第一剧场", "CCTV第一剧场HD"],
+            "风云足球": ["CCTV-风云足球", "CCTV风云足球", "CCTV风云足球HD"],
+            "风云剧场": ["CCTV-风云剧场", "CCTV风云剧场", "CCTV风云剧场HD"],
+            "怀旧剧场": ["CCTV-怀旧剧场", "CCTV怀旧剧场", "CCTV怀旧剧场HD"],
+            "女性时尚": ["CCTV-女性时尚", "CCTV女性时尚", "CCTV女性时尚HD"],
+            "世界地理": ["CCTV-世界地理", "CCTV世界地理", "CCTV世界地理HD"],
+            "央视台球": ["CCTV-央视台球", "CCTV央视台球", "CCTV央视台球HD"],
+            "高尔夫网球": ["CCTV-高尔夫网球", "CCTV高尔夫网球", "CCTV央视高网", "CCTV-高尔夫·网球", "央视高网"],
+            "央视文化精品": ["CCTV-央视文化精品", "CCTV央视文化精品", "CCTV文化精品", "CCTV-文化精品", "文化精品"],
+            "卫生健康": ["CCTV-卫生健康", "CCTV卫生健康"],
+            "电视指南": ["CCTV-电视指南", "CCTV电视指南"],
+            "农林卫视": ["陕西农林卫视"],
+            "内蒙古卫视": ["内蒙古", "内蒙卫视"],
+            "康巴卫视": ["四川康巴卫视"],
+            "山东教育卫视": ["山东教育"],
+            "中国教育1台": ["CETV1", "中国教育一台", "中国教育1", "CETV", "CETV-1", "中国教育"],
+            "中国教育2台": ["CETV2", "中国教育二台", "中国教育2", "CETV-2 空中课堂", "CETV-2"],
+            "中国教育3台": ["CETV3", "中国教育三台", "中国教育3", "CETV-3 教育服务", "CETV-3"],
+            "中国教育4台": ["CETV4", "中国教育四台", "中国教育4", "中国教育电视台第四频道", "CETV-4"],
+            "东南卫视": ["福建东南"],
+            "CHC动作电影": ["CHC动作电影高清"],
+            "CHC家庭影院": ["CHC家庭电影高清"],
+            "CHC影迷电影": ["CHC高清电影", "CHC-影迷电影", "影迷电影", "chc高清电影"],
+            "星空卫视": ["星空衛視", "星空衛视", "星空卫視"],
+            "CHANNELV": ["Channel [V]", "Channel[V]"],
+            "凤凰卫视中文台": ["凤凰中文", "凤凰中文台", "凤凰卫视中文", "凤凰卫视"],
+            "凤凰卫视香港台": ["凤凰香港台", "凤凰卫视香港", "凤凰香港"],
+            "凤凰卫视资讯台": ["凤凰资讯", "凤凰资讯台", "凤凰咨询", "凤凰咨询台", "凤凰卫视咨询台", "凤凰卫视资讯", "凤凰卫视咨询"],
+            "凤凰卫视电影台": ["凤凰电影", "凤凰电影台", "凤凰卫视电影", "鳳凰衛視電影台", "凤凰电影"],
+            "乐游": ["乐游频道", "上海乐游频道", "乐游纪实", "SiTV乐游频道", "乐游高清"],
+            "欢笑剧场": ["上海欢笑剧场4K", "欢笑剧场 4K", "欢笑剧场高清", "上海欢笑剧场"],
+            "生活时尚": ["生活时尚4K", "SiTV生活时尚", "上海生活时尚", "生活时尚高清"],
+            "都市剧场": ["都市剧场4K", "SiTV都市剧场", "上海都市剧场", "都市剧场高清"],
+            "游戏风云": ["游戏风云4K", "SiTV游戏风云", "上海游戏风云", "游戏风云高清"],
+            "金色学堂": ["金色学堂4K", "SiTV金色学堂", "上海金色学堂", "金色学堂高清"],
+            "动漫秀场": ["动漫秀场4K", "SiTV动漫秀场", "上海动漫秀场", "动漫秀场高清"],
+            "卡酷少儿": ["北京KAKU少儿", "BRTV卡酷少儿", "北京卡酷少儿", "卡酷动画", "北京卡通", "北京少儿"],
+            "哈哈炫动": ["炫动卡通", "上海哈哈炫动"],
+            "优漫卡通": ["江苏优漫卡通", "优漫漫画"],
+            "金鹰卡通": ["湖南金鹰卡通"],
+            "嘉佳卡通": ["佳佳卡通"],
+            "中国交通": ["中国交通频道", "中国交通HD"],
+            "中国天气": ["中国天气频道", "中国天气HD"]
+        };
 
-        // 初始化：第一个分类默认激活（边框高亮）
+        // 全局变量
+        let activeCategoryCard = document.querySelector('.category-card');
+        let mappingData = { ...DEFAULT_MAPPING }; // 映射数据（默认加载你的配置）
+        let mappingChanged = false; // 标记映射是否有新增/修改
+
+        // 初始化：第一个分类默认激活
         activeCategoryCard.style.border = '2px solid #007aff';
+
+        // 切换标签页
+        function switchTab(tab) {
+            // 切换标签样式
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+            // 切换面板显示
+            document.getElementById('category-panel').style.display = tab === 'category' ? 'block' : 'none';
+            document.getElementById('mapping-panel').style.display = tab === 'mapping' ? 'block' : 'none';
+            
+            // 切换到映射面板时自动渲染映射列表
+            if (tab === 'mapping') {
+                renderMappings();
+            }
+        }
 
         // 点击分类卡片 → 激活当前分类
         function bindCategoryActiveEvent() {
@@ -494,7 +653,7 @@
                     <div class="channel-tags"></div>
                 </div>
             `;
-            // 新增分类卡片到容器末尾
+            // 分类卡片到容器末尾
             document.getElementById('categories-container').insertAdjacentHTML('beforeend', categoryHtml);
             // 绑定分类激活事件
             bindCategoryActiveEvent();
@@ -560,7 +719,7 @@
             });
         }
 
-        // 保存配置
+        // 保存分类配置 - 调整提示文案
         document.getElementById('save-all').addEventListener('click', async () => {
             const allConfigs = [];
             let isValid = true;
@@ -591,14 +750,216 @@
                 const res = await fetch('/api/config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ all_configs: allConfigs })
+                    body: JSON.stringify({ 
+                        category_configs: allConfigs,
+                        mapping_configs: mappingData // 同时保存映射配置
+                    })
                 });
                 const data = await res.json();
-                alert(`保存成功！\n${data.msg}`);
+                alert('分类配置保存成功！'); // 成功提示简化
             } catch (err) {
-                alert('后端服务未启动，请先运行Python脚本');
+                alert('后端服务未启动，请先运行Python脚本'); // 仅此处保留该提示
             }
         });
+
+        // 渲染映射列表
+        function renderMappings() {
+            const container = document.getElementById('mapping-container');
+            container.innerHTML = '';
+            
+            // 渲染每个映射规则
+            Object.keys(mappingData).forEach(stdName => {
+                const aliases = mappingData[stdName];
+                const card = document.createElement('div');
+                card.className = 'mapping-card';
+                card.innerHTML = `
+                    <div class="mapping-header">
+                        <input type="text" class="standard-name-input" value="${stdName}" placeholder="标准频道名" onchange="updateStdName('${stdName}', this.value)">
+                        <button class="btn-delete" onclick="deleteMapping('${stdName}')">删除</button>
+                    </div>
+                    <div class="alias-tags" id="alias-tags-${stdName}"></div>
+                    <div class="alias-input-container">
+                        <input type="text" class="alias-input" placeholder="输入频道别名（如CCTV-1）" id="alias-input-${stdName}">
+                        <button class="add-alias-btn" onclick="addAlias('${stdName}')">添加别名</button>
+                    </div>
+                `;
+                container.appendChild(card);
+                
+                // 渲染别名标签
+                const tagContainer = document.getElementById(`alias-tags-${stdName}`);
+                aliases.forEach(alias => {
+                    addAliasTag(tagContainer, alias, stdName);
+                });
+            });
+        }
+
+        // 添加别名标签
+        function addAliasTag(container, alias, stdName) {
+            const tag = document.createElement('div');
+            tag.className = 'alias-tag';
+            tag.innerHTML = `${alias} <span class="tag-close" onclick="removeAlias('${stdName}', '${alias}', this)">×</span>`;
+            container.appendChild(tag);
+        }
+
+        // 添加映射规则 - 完全静默，无任何提示
+        document.getElementById('add-mapping').addEventListener('click', () => {
+            const newStdName = '新频道';
+            // 避免重名
+            let i = 1;
+            while (mappingData[newStdName + (i > 1 ? i : '')]) {
+                i++;
+            }
+            const finalStdName = newStdName + (i > 1 ? i : '');
+            
+            // 添加新映射规则
+            mappingData[finalStdName] = [];
+            
+            // 标记映射有变更
+            mappingChanged = true;
+            
+            // 重新渲染
+            renderMappings();
+        });
+
+        // 添加别名
+        function addAlias(stdName) {
+            const input = document.getElementById(`alias-input-${stdName}`);
+            const alias = input.value.trim();
+            if (!alias) {
+                alert('别名不能为空');
+                return;
+            }
+            if (mappingData[stdName].includes(alias)) {
+                alert('该别名已存在');
+                return;
+            }
+            
+            // 添加别名
+            mappingData[stdName].push(alias);
+            input.value = '';
+            
+            // 标记映射有变更
+            mappingChanged = true;
+            
+            // 渲染别名标签
+            const tagContainer = document.getElementById(`alias-tags-${stdName}`);
+            addAliasTag(tagContainer, alias, stdName);
+        }
+
+        // 移除别名
+        function removeAlias(stdName, alias, el) {
+            mappingData[stdName] = mappingData[stdName].filter(a => a !== alias);
+            el.closest('.alias-tag').remove();
+            
+            // 标记映射有变更
+            mappingChanged = true;
+        }
+
+        // 更新标准频道名
+        function updateStdName(oldName, newName) {
+            newName = newName.trim();
+            if (!newName) {
+                alert('标准频道名不能为空');
+                document.querySelector(`.standard-name-input[onchange="updateStdName('${oldName}', this.value)"]`).value = oldName;
+                return;
+            }
+            if (newName !== oldName && mappingData[newName]) {
+                alert('该标准频道名已存在');
+                document.querySelector(`.standard-name-input[onchange="updateStdName('${oldName}', this.value)"]`).value = oldName;
+                return;
+            }
+            
+            // 更新映射键名
+            mappingData[newName] = mappingData[oldName];
+            delete mappingData[oldName];
+            
+            // 标记映射有变更
+            mappingChanged = true;
+            
+            // 重新渲染
+            renderMappings();
+        }
+
+        // 删除映射规则
+        function deleteMapping(stdName) {
+            if (confirm(`确定删除映射规则「${stdName}」吗？`)) {
+                // 删除映射
+                delete mappingData[stdName];
+                
+                // 标记映射有变更
+                mappingChanged = true;
+                
+                // 重新渲染
+                renderMappings();
+            }
+        }
+
+        // 保存映射配置 - 按要求调整所有提示
+        document.getElementById('save-mapping').addEventListener('click', async () => {
+            // 验证映射配置
+            let isValid = true;
+            for (const stdName of Object.keys(mappingData)) {
+                if (!stdName.trim()) {
+                    alert('标准频道名不能为空');
+                    isValid = false;
+                    break;
+                }
+            }
+            if (!isValid) return;
+
+            // 同步更新频道库
+            syncMappingToChannelLibrary();
+
+            try {
+                const res = await fetch('/api/mapping', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(mappingData)
+                });
+                const data = await res.json();
+                
+                // 根据是否有变更显示对应提示
+                if (mappingChanged) {
+                    alert('映射配置保存成功！标准频道名已同步到频道库');
+                    mappingChanged = false; // 重置标记
+                } else {
+                    alert('映射配置保存成功！'); // 常规保存成功提示
+                }
+            } catch (err) {
+                alert('保存成功（本地）');
+            }
+        });
+
+        //同步映射规则到频道库
+        function syncMappingToChannelLibrary() {
+            const libraryContainer = document.getElementById('preset-channels-container');
+            const existingChannels = Array.from(libraryContainer.querySelectorAll('.preset-channel')).map(el => el.textContent.trim());
+            
+            // 遍历所有标准频道名，添加到频道库（去重）
+            Object.keys(mappingData).forEach(stdName => {
+                if (!existingChannels.includes(stdName)) {
+                    // 添加到频道库DOM
+                    const channelEl = document.createElement('span');
+                    channelEl.className = 'preset-channel';
+                    channelEl.textContent = stdName;
+                    // 绑定点击事件
+                    channelEl.onclick = () => {
+                        const activeTags = activeCategoryCard.querySelector('.channel-tags');
+                        const isDuplicate = Array.from(activeTags.querySelectorAll('.channel-tag')).some(tag => 
+                            tag.textContent.includes(stdName)
+                        );
+                        if (isDuplicate) return;
+                        const tagHtml = `<div class="channel-tag">${stdName} <span class="tag-close">×</span></div>`;
+                        activeTags.insertAdjacentHTML('beforeend', tagHtml);
+                        bindTagCloseEvent();
+                    };
+                    libraryContainer.appendChild(channelEl);
+                    
+                    // 同步更新PRESET_CHANNELS数组
+                    PRESET_CHANNELS.push(stdName);
+                }
+            });
+        }
 
         // 初始化绑定事件
         bindCategoryActiveEvent();

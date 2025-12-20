@@ -26,7 +26,7 @@ IS_FIRST_RUN = True
 FIRST_RUN_LIMIT = 20000
 MAX_SOURCES_TO_WRITE = 8
 MAX_SOURCES_PER_CHANNEL = 30
-PORT = 5000
+PORT = int(os.getenv("PORT", 5000))
 UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", 21600))
 CLEAN_INTERVAL = 43200
 OUTPUT_FILE = "list.txt"
@@ -634,6 +634,14 @@ def update_config():
     try:
         new_config = request.get_json()
         success, msg = save_channel_config(new_config)
+        if success:
+            def regenerate():
+                try:
+                    asyncio.run(generate_itvlist())
+                except Exception as e:
+                    print(f"❌ 自动更新节目单失败：{e}")
+            threading.Thread(target=regenerate, daemon=True).start()
+        # ==========================================================
         return {
             "code": 200 if success else 500,
             "msg": msg
@@ -685,10 +693,9 @@ if __name__ == "__main__":
     init_config_dir()
     init_placeholder()
 
+    print(f"🌐 Flask服务启动，监听端口：{PORT}（{get_elapsed_time()}）")
     threading.Thread(target=background_loop, daemon=True).start()
     threading.Thread(target=clean_loop, daemon=True).start()
-
-    print(f"🌐 Flask服务启动，监听端口：{PORT}（{get_elapsed_time()}）")
     app.run(
         host="0.0.0.0",
         port=PORT,
@@ -696,4 +703,5 @@ if __name__ == "__main__":
         use_reloader=False,
         threaded=True
     )
+
 

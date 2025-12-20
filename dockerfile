@@ -10,17 +10,19 @@ RUN apt update && apt install -y --no-install-recommends \
     libc6-dev \
     gcc \
     procps \
+    vim \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
-RUN mkdir -p /app/config && chmod 777 /app/config
+RUN mkdir -p /app/config && chmod 777 /app/config && chown -R root:root /app
 
 COPY v146.py .
-
 COPY static /app/static
 
 EXPOSE 5000
+
+ENV PORT=5000
 
 CMD ["python", "-u", "-X", "gc_threshold=1000000", "v146.py"]

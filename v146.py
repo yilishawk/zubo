@@ -146,15 +146,12 @@ def load_channel_config():
     }
     try:
         if not os.path.exists(CHANNEL_CONFIG_FILE):
-            # 生成默认配置文件
             with open(CHANNEL_CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(default_config, f, ensure_ascii=False, indent=2)
             print(f"📝 默认配置文件生成：{CHANNEL_CONFIG_FILE}（{get_elapsed_time()}）")
             return default_config
-        # 读取现有配置
         with open(CHANNEL_CONFIG_FILE, "r", encoding="utf-8") as f:
             config = json.load(f)
-        # 兼容旧配置（仅分类无映射）
         if "mapping" not in config:
             config["mapping"] = default_config["mapping"]
             with open(CHANNEL_CONFIG_FILE, "w", encoding="utf-8") as f:
@@ -168,17 +165,14 @@ def save_channel_config(new_config):
     """保存分类+映射配置"""
     init_config_dir()
     try:
-        # 验证配置格式
         if not isinstance(new_config.get("categories"), dict) or not isinstance(new_config.get("mapping"), dict):
             return False, "配置格式错误：categories和mapping必须是字典"
-        # 写入配置文件
         with open(CHANNEL_CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(new_config, f, ensure_ascii=False, indent=2)
         return True, "分类+映射配置保存成功"
     except Exception as e:
         return False, f"保存失败：{str(e)}"
 
-# ================== 核心业务逻辑 ==================
 def force_gc():
     gc.collect()
     gc.collect()
@@ -230,7 +224,6 @@ def clean_garbage():
     global RLIMIT_SUPPORTED
     print(f"\n🧹 清理任务开始（{get_elapsed_time()}）")
 
-    # 仅清理核心临时文件
     temp_files = glob.glob("/tmp/*.ffprobe") + glob.glob("/tmp/ffprobe*") + glob.glob("/tmp/aiohttp*")
     file_count = 0
     for f in temp_files:
@@ -502,12 +495,10 @@ async def generate_itvlist():
     run_type = "首次启动" if IS_FIRST_RUN else "定时更新"
     print(f"🚀 开始生成节目单（{run_type}）（{get_elapsed_time()}）")
 
-    # 动态加载分类+映射配置（前端修改后立即生效）
     config = load_channel_config()
     CHANNEL_CATEGORIES = config["categories"]
     CHANNEL_MAPPING = config["mapping"]
 
-    # 初始化请求参数
     timeout = aiohttp.ClientTimeout(total=30)
     connector = aiohttp.TCPConnector(
         limit=50,
@@ -519,7 +510,6 @@ async def generate_itvlist():
     session = aiohttp.ClientSession(timeout=timeout, connector=connector)
 
     try:
-        # 1. 抓取有效JSON接口
         urls = generate_json_urls()
         sem = asyncio.Semaphore(JSON_CONCURRENCY)
 
@@ -534,7 +524,6 @@ async def generate_itvlist():
         valid_urls = [u for u in await asyncio.gather(*[check(u) for u in urls]) if u]
         print(f"✅ 检测到 {len(valid_urls)} 个可用JSON接口（{get_elapsed_time()}）")
 
-        # 2. 解析频道数据
         all_channels = []
         sem2 = asyncio.Semaphore(CONCURRENCY)
 
@@ -559,11 +548,9 @@ async def generate_itvlist():
         for part in await asyncio.gather(*[fetch(u) for u in valid_urls]):
             all_channels.extend(part)
 
-        # 3. 映射频道别名到标准名
         grouped = {}
         for n, u in all_channels:
             std_name = n.strip().replace("＋", "+").replace("（", "(").replace("）", ")")
-            # 匹配映射规则
             for std, aliases in CHANNEL_MAPPING.items():
                 if std_name.lower() in [a.lower() for a in aliases]:
                     std_name = std
@@ -571,7 +558,6 @@ async def generate_itvlist():
             grouped.setdefault(std_name, []).append(u)
         print(f"✅ 爬取到 {len(grouped)} 个唯一频道（{get_elapsed_time()}）")
 
-        # 4. 检测有效视频源
         measured = {}
         sem3 = asyncio.Semaphore(FFPROBE_CONCURRENCY)
         processed = 0
@@ -589,7 +575,6 @@ async def generate_itvlist():
             if processed % 10 == 0:
                 print(f"🔄 检测进度：{processed}/{total}（{get_elapsed_time()}）")
 
-        # 5. 生成节目单文件
         tz = pytz.timezone('Asia/Shanghai')
         now = datetime.datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
         tmp_file = OUTPUT_FILE + ".tmp"
@@ -626,7 +611,6 @@ def background_loop():
                 break
         force_gc()
 
-# ================== Flask Web服务 ==================
 app = Flask(__name__)
 
 @app.route("/")
@@ -693,22 +677,17 @@ def handle_exit(signum, frame):
     print(f"✅ 服务已停止（{get_elapsed_time()}）")
     os._exit(0)
 
-# ================== 程序入口 ==================
 if __name__ == "__main__":
     import signal
-    # 注册退出信号
     signal.signal(signal.SIGINT, handle_exit)
     signal.signal(signal.SIGTERM, handle_exit)
 
-    # 初始化配置和占位文件
     init_config_dir()
     init_placeholder()
 
-    # 启动后台任务
     threading.Thread(target=background_loop, daemon=True).start()
     threading.Thread(target=clean_loop, daemon=True).start()
 
-    # 启动Flask服务
     print(f"🌐 Flask服务启动，监听端口：{PORT}（{get_elapsed_time()}）")
     app.run(
         host="0.0.0.0",
@@ -717,3 +696,4 @@ if __name__ == "__main__":
         use_reloader=False,
         threaded=True
     )
+

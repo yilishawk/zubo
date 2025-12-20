@@ -611,8 +611,57 @@
         let mappingData = { ...DEFAULT_MAPPING }; // 映射数据（默认加载你的配置）
         let mappingChanged = false; // 标记映射是否有新增/修改
 
-        // 初始化：第一个分类默认激活
-        activeCategoryCard.style.border = '2px solid #007aff';
+        // 初始化：加载后端配置
+        window.onload = async function() {
+            try {
+                // 加载分类+映射配置
+                const res = await fetch('/api/config', { method: 'GET' });
+                const data = await res.json();
+                if (data.code === 200 && data.data) {
+                    // 加载分类配置
+                    if (data.data.categories) {
+                        renderCategories(data.data.categories);
+                    }
+                    // 加载映射配置
+                    if (data.data.mapping) {
+                        mappingData = data.data.mapping;
+                    }
+                }
+            } catch (err) {
+                console.log('加载后端配置失败，使用本地默认配置:', err);
+            }
+            // 初始化绑定事件
+            bindCategoryActiveEvent();
+            bindDeleteCategoryEvent();
+            bindTagCloseEvent();
+        };
+
+        // 渲染分类配置
+        function renderCategories(categories) {
+            const container = document.getElementById('categories-container');
+            container.innerHTML = '';
+            Object.keys(categories).forEach(catName => {
+                const channels = categories[catName];
+                const categoryHtml = `
+                    <div class="category-card">
+                        <div class="category-header">
+                            <input type="text" class="category-name-input" value="${catName}" placeholder="比如:央视、卫视、地方等">
+                            <button class="btn-delete">删除</button>
+                        </div>
+                        <div class="channel-tags">
+                            ${channels.map(channel => `<div class="channel-tag">${channel} <span class="tag-close">×</span></div>`).join('')}
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', categoryHtml);
+            });
+            // 激活第一个分类
+            const firstCard = document.querySelector('.category-card');
+            if (firstCard) {
+                firstCard.style.border = '2px solid #007aff';
+                activeCategoryCard = firstCard;
+            }
+        }
 
         // 切换标签页
         function switchTab(tab) {
@@ -674,7 +723,7 @@
                 
                 // 去重：当前分类已有的频道不重复添加
                 const isDuplicate = Array.from(activeTags.querySelectorAll('.channel-tag')).some(tag => 
-                    tag.textContent.includes(channelName)
+                    tag.textContent.replace('×', '').trim() === channelName
                 );
                 if (isDuplicate) return;
 
@@ -719,15 +768,16 @@
             });
         }
 
-        // 保存分类配置 - 调整提示文案
+        // 保存分类配置 - 修复提交格式（匹配后端的categories/mapping结构）
         document.getElementById('save-all').addEventListener('click', async () => {
-            const allConfigs = [];
+            // 构建后端需要的配置格式
+            const categories = {};
             let isValid = true;
 
             document.querySelectorAll('.category-card').forEach((card, idx) => {
                 const categoryName = card.querySelector('.category-name-input').value.trim();
                 const channels = Array.from(card.querySelectorAll('.channel-tag')).map(tag => 
-                    tag.textContent.trim().replace('×', '')
+                    tag.textContent.replace('×', '').trim()
                 );
 
                 if (!categoryName) {
@@ -741,24 +791,32 @@
                     return;
                 }
 
-                allConfigs.push({ category: categoryName, channels: channels });
+                categories[categoryName] = channels;
             });
 
             if (!isValid) return;
+
+            // 构建完整配置（包含categories和mapping）
+            const configData = {
+                categories: categories,
+                mapping: mappingData
+            };
 
             try {
                 const res = await fetch('/api/config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        category_configs: allConfigs,
-                        mapping_configs: mappingData // 同时保存映射配置
-                    })
+                    body: JSON.stringify(configData)
                 });
                 const data = await res.json();
-                alert('分类配置保存成功！'); // 成功提示简化
+                if (data.code === 200) {
+                    alert('分类配置保存成功！');
+                } else {
+                    alert(`保存失败：${data.msg}`);
+                }
             } catch (err) {
-                alert('后端服务未启动，请先运行Python脚本'); // 仅此处保留该提示
+                alert('保存失败：请检查后端服务是否正常启动');
+                console.error('保存配置失败:', err);
             }
         });
 
@@ -894,7 +952,7 @@
             }
         }
 
-        // 保存映射配置 - 按要求调整所有提示
+        // 保存映射配置 - 修复提交地址和格式
         document.getElementById('save-mapping').addEventListener('click', async () => {
             // 验证映射配置
             let isValid = true;
@@ -910,23 +968,34 @@
             // 同步更新频道库
             syncMappingToChannelLibrary();
 
+            // 构建完整配置（匹配后端接口）
+            const configData = {
+                categories: {}, // 保留分类结构（避免后端报错）
+                mapping: mappingData
+            };
+
             try {
-                const res = await fetch('/api/mapping', {
+                const res = await fetch('/api/config', { // 统一用/api/config接口，而非/api/mapping
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(mappingData)
+                    body: JSON.stringify(configData)
                 });
                 const data = await res.json();
                 
                 // 根据是否有变更显示对应提示
-                if (mappingChanged) {
-                    alert('映射配置保存成功！标准频道名已同步到频道库');
-                    mappingChanged = false; // 重置标记
+                if (data.code === 200) {
+                    if (mappingChanged) {
+                        alert('映射配置保存成功！标准频道名已同步到频道库');
+                        mappingChanged = false; // 重置标记
+                    } else {
+                        alert('映射配置保存成功！'); // 常规保存成功提示
+                    }
                 } else {
-                    alert('映射配置保存成功！'); // 常规保存成功提示
+                    alert(`保存失败：${data.msg}`);
                 }
             } catch (err) {
-                alert('保存成功（本地）');
+                alert('保存失败：请检查后端服务是否正常启动');
+                console.error('保存映射配置失败:', err);
             }
         });
 
@@ -946,7 +1015,7 @@
                     channelEl.onclick = () => {
                         const activeTags = activeCategoryCard.querySelector('.channel-tags');
                         const isDuplicate = Array.from(activeTags.querySelectorAll('.channel-tag')).some(tag => 
-                            tag.textContent.includes(stdName)
+                            tag.textContent.replace('×', '').trim() === stdName
                         );
                         if (isDuplicate) return;
                         const tagHtml = `<div class="channel-tag">${stdName} <span class="tag-close">×</span></div>`;
@@ -960,11 +1029,6 @@
                 }
             });
         }
-
-        // 初始化绑定事件
-        bindCategoryActiveEvent();
-        bindDeleteCategoryEvent();
-        bindTagCloseEvent();
     </script>
 </body>
 </html>

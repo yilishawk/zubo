@@ -1,0 +1,7 @@
+# 你的代码中用到的核心依赖
+Flask==2.3.3
+aiohttp==3.9.1
+psutil==5.9.6
+pytz==2023.3
+gunicorn==21.2.0  # 可选，生产环境推荐
+requests==2.31.0

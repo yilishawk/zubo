@@ -234,21 +234,37 @@ def second_stage():
     """生成 zubo.txt"""
     combined = []
     if not os.path.exists(RTP_DIR): return
+    if not os.path.exists(IP_DIR): return  # 增加目录检查
+    
     for ip_file in os.listdir(IP_DIR):
         rtp_file = os.path.join(RTP_DIR, ip_file)
         if not os.path.exists(rtp_file): continue
-        with open(os.path.join(IP_DIR, ip_file), encoding="utf-8") as f1, open(rtp_file, encoding="utf-8") as f2:
+        
+        with open(os.path.join(IP_DIR, ip_file), encoding="utf-8") as f1, \
+             open(rtp_file, encoding="utf-8") as f2:
             ips = [x.strip() for x in f1 if x.strip()]
             rtps = [x.strip() for x in f2 if x.strip()]
+            
             for ip in ips:
                 for rtp in rtps:
                     if "," in rtp:
-                        name, url = rtp.split(",", 1)
-                        proto = "udp" if "udp://" in url else "rtp"
-                        combined.append(f"{name},http://{ip}/{proto}/{url.split('://')[1]}")
+                        try:
+                            name, url = rtp.split(",", 1)
+                            # --- 核心安全修复逻辑 ---
+                            if "://" in url:
+                                proto = "udp" if "udp://" in url else "rtp"
+                                url_part = url.split("://")[1]
+                                combined.append(f"{name},http://{ip}/{proto}/{url_part}")
+                            else:
+                                # 如果没有协议头，假设它是 rtp
+                                combined.append(f"{name},http://{ip}/rtp/{url.strip()}")
+                            # -----------------------
+                        except Exception as e:
+                            print(f"⚠️ 跳过异常行: {rtp}, 错误: {e}")
+                            continue
+                            
     with open(ZUBO_FILE, "w", encoding="utf-8") as f:
         f.write("\n".join(list(set(combined))))
-
 def third_stage():
     """测速并排序生成 IPTV.txt"""
     print("🧩 正在检测流有效性及评分排序...")

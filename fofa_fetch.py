@@ -4,6 +4,7 @@ import requests
 import time
 import concurrent.futures
 import subprocess
+import socket
 from datetime import datetime, timezone, timedelta
 
 # ===============================
@@ -37,7 +38,7 @@ CHANNEL_CATEGORIES = {
     ],
     "数字频道": [
         "CHC动作电影", "CHC家庭影院", "CHC影迷电影", "淘电影", "淘精彩", "淘剧场", "淘4K", "淘娱乐", "淘BABY", "淘萌宠", "重温经典",
-        "星空卫视", "CHANNEL[V]", "凤凰卫视中文台", "凤凰卫视资讯台", "凤凰卫视香港台", "凤凰卫卫电影台", "求索纪录", "求索科学",
+        "星空卫视", "CHANNEL[V]", "凤凰卫视中文台", "凤凰卫视资讯台", "凤凰卫视香港台", "凤凰卫视电影台", "求索纪录", "求索科学",
         "求索生活", "求索动物", "纪实人文", "金鹰纪实", "纪实科教", "睛彩青少", "睛彩竞技", "睛彩篮球", "睛彩广场舞", "魅力足球", "五星体育",
         "劲爆体育", "快乐垂钓", "茶频道", "先锋乒羽", "天元围棋", "汽摩", "梨园频道", "文物宝库", "武术世界", "哒啵赛事", "哒啵电竞", "黑莓电影", "黑莓动画", 
         "乐游", "生活时尚", "都市剧场", "欢笑剧场", "游戏风云", "金色学堂", "动漫秀场", "新动漫", "卡酷少儿", "金鹰卡通", "优漫卡通", "哈哈炫动", "嘉佳卡通", 
@@ -46,7 +47,7 @@ CHANNEL_CATEGORIES = {
     ]
 }
 
-# --- 映射 (保持你的原始映射逻辑) ---
+# --- 映射 (保持你原本的所有映射) ---
 CHANNEL_MAPPING = {
     "CCTV1": ["CCTV-1", "CCTV-1 HD", "CCTV1 HD", "CCTV-1综合"],
     "CCTV2": ["CCTV-2", "CCTV-2 HD", "CCTV2 HD", "CCTV-2财经"],
@@ -158,8 +159,15 @@ def save_run_count(count):
     with open(COUNTER_FILE, "w", encoding="utf-8") as f:
         f.write(str(count))
 
+def get_isp_from_api(data):
+    isp_raw = (data.get("isp") or "").lower()
+    if any(x in isp_raw for x in ["telecom", "ct", "chinatelecom"]): return "电信"
+    if any(x in isp_raw for x in ["unicom", "cu", "chinaunicom"]): return "联通"
+    if any(x in isp_raw for x in ["mobile", "cm", "chinamobile"]): return "移动"
+    return "未知"
+
 def get_latency(url):
-    """测量首屏延迟，确保播放流畅"""
+    """测算秒开延迟"""
     try:
         start = time.time()
         with requests.get(url, timeout=2.0, stream=True, verify=False, headers=HEADERS) as r:
@@ -168,8 +176,12 @@ def get_latency(url):
     except: pass
     return 999.0
 
+# ===============================
+# 核心业务逻辑
+# ===============================
+
 def handle_cycle_cleanup(count):
-    """73次轮回清理：保留 IPTV.txt 中依然可用的 IP，清空文件夹"""
+    """73次轮回清理"""
     if count < 73: return count
     print("🧹 轮回触发：正在清理并保留优质 IP...")
     active_ips = {}
@@ -182,8 +194,7 @@ def handle_cycle_cleanup(count):
                     operator = parts[1].strip()
                     ip_match = re.search(r'http://([^/]+)/', url_part)
                     if ip_match:
-                        fname = f"{operator}.txt"
-                        active_ips.setdefault(fname, set()).add(ip_match.group(1))
+                        active_ips.setdefault(f"{operator}.txt", set()).add(ip_match.group(1))
     if os.path.exists(IP_DIR):
         for f in os.listdir(IP_DIR): os.remove(os.path.join(IP_DIR, f))
     for fname, ip_set in active_ips.items():
@@ -191,12 +202,8 @@ def handle_cycle_cleanup(count):
             f.write("\n".join(sorted(ip_set)) + "\n")
     return 1
 
-# ===============================
-# 核心阶段
-# ===============================
-
 def first_stage():
-    """爬取 FOFA 并按地区运营商存入 IP 目录"""
+    """爬取 FOFA 并识别运营商"""
     os.makedirs(IP_DIR, exist_ok=True)
     all_ips = set()
     for url, filename in FOFA_URLS.items():
@@ -206,24 +213,31 @@ def first_stage():
             all_ips.update(u.strip() for u in urls if u.strip())
         except: pass
     
-    # 这里简化了运营商判断，实际使用时建议保留你原有的 get_isp_from_api
+    province_isp_dict = {}
     for ip_port in all_ips:
         try:
             host = ip_port.split(":")[0]
-            # 简易归类示例
-            fname = "其他电信.txt" 
-            with open(os.path.join(IP_DIR, fname), "a", encoding="utf-8") as f:
-                f.write(ip_port + "\n")
+            res = requests.get(f"http://ip-api.com/json/{host}?lang=zh-CN", timeout=10).json()
+            province = res.get("regionName", "未知")
+            isp = get_isp_from_api(res)
+            if isp == "未知": continue
+            fname = f"{province}{isp}.txt"
+            province_isp_dict.setdefault(fname, set()).add(ip_port)
         except: continue
 
+    for filename, ip_set in province_isp_dict.items():
+        path = os.path.join(IP_DIR, filename)
+        with open(path, "a", encoding="utf-8") as f:
+            for ip in sorted(ip_set): f.write(ip + "\n")
+
 def second_stage():
-    """组合 IP 与 RTP 模板生成 zubo.txt"""
+    """生成 zubo.txt"""
     combined = []
     if not os.path.exists(RTP_DIR): return
     for ip_file in os.listdir(IP_DIR):
         rtp_file = os.path.join(RTP_DIR, ip_file)
         if not os.path.exists(rtp_file): continue
-        with open(os.path.join(IP_DIR, ip_file)) as f1, open(rtp_file) as f2:
+        with open(os.path.join(IP_DIR, ip_file), encoding="utf-8") as f1, open(rtp_file, encoding="utf-8") as f2:
             ips = [x.strip() for x in f1 if x.strip()]
             rtps = [x.strip() for x in f2 if x.strip()]
             for ip in ips:
@@ -236,51 +250,46 @@ def second_stage():
         f.write("\n".join(list(set(combined))))
 
 def third_stage():
-    """检测并排序生成 IPTV.txt"""
-    print("🔍 正在检测流并进行流畅度评分...")
+    """测速并排序生成 IPTV.txt"""
+    print("🧩 正在检测流有效性及评分排序...")
     alias_map = {alias: main for main, aliases in CHANNEL_MAPPING.items() for alias in aliases}
     
-    # 建立 IP 归属
     ip_to_op = {}
     for f in os.listdir(IP_DIR):
         op = f.replace(".txt", "")
-        with open(os.path.join(IP_DIR, f)) as f_in:
+        with open(os.path.join(IP_DIR, f), encoding="utf-8") as f_in:
             for line in f_in: ip_to_op[line.strip()] = op
 
-    # 分组数据
     groups = {}
     with open(ZUBO_FILE, encoding="utf-8") as f:
         for line in f:
             if "," not in line: continue
             name, url = line.strip().split(",", 1)
             main_name = alias_map.get(name, name)
-            m = re.search(r"http://([^/]+)/", url)
-            if m:
-                ip = m.group(1)
-                groups.setdefault(ip, []).append((main_name, url))
+            ip = re.search(r"http://([^/]+)/", url).group(1)
+            groups.setdefault(ip, []).append((main_name, url))
 
-    # 并发检测
+    # 并发测速
     playable_ips = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
         def check(ip, entries):
-            test_url = entries[0][1] # 取第一个频道测试
+            test_url = entries[0][1]
             try:
                 res = subprocess.run(["ffprobe", "-v", "error", "-i", test_url, "-show_entries", "stream=codec_type"], timeout=5, capture_output=True)
                 if b"codec_type" in res.stdout:
-                    # 如果可播放，紧接着测延迟
                     return ip, get_latency(test_url)
             except: pass
             return ip, 999
 
-        futures = [executor.submit(check, ip, entries) for ip, entries in groups.items()]
+        futures = [executor.submit(check, ip, chs) for ip, chs in groups.items()]
         for f in concurrent.futures.as_completed(futures):
             ip, delay = f.result()
             if delay < 10: playable_ips[ip] = delay
 
-    # 排序并写入
+    # 排序写入
     bj_now = (datetime.now(timezone.utc) + timedelta(hours=8)).strftime("%Y-%m-%d %H:%M:%S")
     with open(IPTV_FILE, "w", encoding="utf-8") as f:
-        f.write(f"更新时间: {bj_now}\n\n央视频道,#genre#\n{bj_now},http://kakaxi.indevs.in/LOGO/Disclaimer.mp4\n\n")
+        f.write(f"更新时间: {bj_now}\n\n更新时间,#genre#\n{bj_now},http://kakaxi.indevs.in/LOGO/Disclaimer.mp4\n\n")
         
         for cat, names in CHANNEL_CATEGORIES.items():
             f.write(f"{cat},#genre#\n")
@@ -290,24 +299,17 @@ def third_stage():
                     for c_name, url in groups[ip]:
                         if c_name == name:
                             matches.append({"url": url, "op": ip_to_op.get(ip, "未知"), "delay": delay})
-                
-                # 核心：按延迟排序
                 matches.sort(key=lambda x: x["delay"])
-                for m in matches:
-                    f.write(f"{name},{m['url']}${m['op']}\n")
+                for m in matches: f.write(f"{name},{m['url']}${m['op']}\n")
             f.write("\n")
-    print("🎯 IPTV.txt 排序生成完成")
+    print("🎯 IPTV.txt 排序完成")
 
-# ===============================
-# 主程序
-# ===============================
 if __name__ == "__main__":
     count = get_run_count() + 1
     count = handle_cycle_cleanup(count)
     save_run_count(count)
-
-    first_stage() # 每次都爬取 FOFA
-
+    
+    first_stage()
     if count % 10 == 0:
         second_stage()
         third_stage()

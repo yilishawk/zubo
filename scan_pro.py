@@ -3,45 +3,56 @@ import aiohttp
 import time
 import datetime
 
-# ================= 配置区 =================
-SEED_IP = "36.46.98.221"
-# 定义你想探测的端口列表（根据经验，udpxy 常用这几个）
-PORTS = ["8012", "8000", "8888", "4022"] 
-INFO = "陕西西安-电信"
-# ==========================================
+# ================= 陕西种子池配置 =================
+# 格式：(IP种子, 该网段默认端口, 备注)
+SEED_CONFIGS = [
+    ("113.200.52.216", "8085", "陕西西安-电信"),
+    ("36.44.79.26", "5555", "陕西西安-电信"),
+    ("36.44.74.221", "5555", "陕西西安-电信"),
+    ("1.83.126.64", "4022", "陕西西安-电信"),
+    ("124.114.100.78", "6789", "陕西西安-联通"),
+    ("1.83.120.195", "8888", "陕西西安-电信")
+]
 
-async def check_ip_port(session, ip, port, semaphore):
+# 备用探测端口（如果默认端口不通，顺便测测这些）
+EXTRA_PORTS = ["8012", "8000"]
+# ===============================================
+
+async def check_ip_port(session, ip, port, info, semaphore):
     async with semaphore:
         ip_port = f"{ip}:{port}"
         url = f"http://{ip_port}/status"
         try:
-            # 缩短超时到 1.5 秒，因为我们要扫 IP x 端口，数量翻倍了
-            async with session.get(url, timeout=1.5) as resp:
+            # 超时设为 3 秒，确保跨境访问稳定性
+            async with session.get(url, timeout=3) as resp:
                 if resp.status == 200:
                     text = await resp.text()
                     if "udpxy" in text.lower():
-                        return ip_port
+                        return f"{ip_port},{info}"
         except:
             pass
         return None
 
 async def main():
-    print(f"🚀 开始深度扫描 {INFO} (包含端口: {', '.join(PORTS)})...")
+    print(f"🚀 开始对陕西 {len(SEED_CONFIGS)} 个网段进行并发扫描...")
     start_time = time.time()
     
-    prefix = ".".join(SEED_IP.split('.')[:3])
-    
-    # 组合 IP 和 端口： 254个IP * 4个端口 = 1016 个任务
     tasks_list = []
-    for i in range(1, 255):
-        ip = f"{prefix}.{i}"
-        for port in PORTS:
-            tasks_list.append((ip, port))
-    
-    # GitHub Actions 性能强劲，并发开到 300 没问题
-    semaphore = asyncio.Semaphore(300) 
+    for seed_ip, default_port, info in SEED_CONFIGS:
+        prefix = ".".join(seed_ip.split('.')[:3])
+        # 扫描每个种子所在的 C 段 (1-254)
+        for i in range(1, 255):
+            target_ip = f"{prefix}.{i}"
+            # 探测默认端口
+            tasks_list.append((target_ip, default_port, info))
+            # 同时也探测一个备用端口，增加中奖率
+            # for ep in EXTRA_PORTS:
+            #     tasks_list.append((target_ip, ep, info))
+
+    # 并发控制：GitHub Actions 性能可支撑 500 个并发
+    semaphore = asyncio.Semaphore(500) 
     async with aiohttp.ClientSession() as session:
-        tasks = [check_ip_port(session, ip, port, semaphore) for ip, port in tasks_list]
+        tasks = [check_ip_port(session, ip, port, info, semaphore) for ip, port, info in tasks_list]
         results = [r for r in await asyncio.gather(*tasks) if r]
 
     # 去重并排序
@@ -50,11 +61,15 @@ async def main():
     # 写入结果
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     with open("ip.txt", "w", encoding="utf-8") as f:
-        f.write(f"# 深度扫描: {INFO} | 更新时间: {now}\n")
+        f.write(f"# 陕西组播扫描结果 | 更新时间: {now}\n")
+        f.write("# 包含网段: 113.200, 36.44, 1.83, 124.114\n\n")
+        if not results:
+            f.write("# 本次扫描未发现活跃节点，建议检查种子时效性\n")
         for r in results:
-            f.write(f"{r},{INFO}\n")
+            f.write(f"{r}\n")
 
-    print(f"✨ 扫描完成！共探测 {len(tasks_list)} 个点，找到 {len(results)} 个活跃节点。")
+    print(f"✨ 扫描完成！共探测 {len(tasks_list)} 个点。")
+    print(f"✅ 成功找到存活节点: {len(results)} 个。")
     print(f"⏱️ 总耗时: {int(time.time() - start_time)} 秒")
 
 if __name__ == "__main__":

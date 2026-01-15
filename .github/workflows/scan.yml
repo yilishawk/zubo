@@ -1,0 +1,49 @@
+name: 组播C段深度扫描
+
+on:
+  schedule:
+    # 北京时间每 6 小时运行一次 (00:00, 06:00, 12:00, 18:00)
+    - cron: "0 */6 * * *"
+  workflow_dispatch: # 支持手动点击运行
+
+jobs:
+  scan_job:
+    runs-on: ubuntu-latest
+    # 授予写权限，以便将扫描出的 ip.txt 推送回仓库
+    permissions:
+      contents: write
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: 安装依赖
+        run: pip install aiohttp
+
+      - name: 执行深度扫描脚本
+        # 即使个别 IP 连接报错也不停止流程
+        continue-on-error: true
+        # 扫描 1000 个点通常只要 1 分钟，这里给 5 分钟上限
+        timeout-minutes: 5
+        run: python scan_pro.py
+
+      - name: 推送扫描结果
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 确保文件存在
+          touch ip.txt
+          
+          git add ip.txt
+          if git diff --staged --quiet; then
+            echo "节点列表未发生变化，跳过推送。"
+          else
+            git commit -m "自动更新：已扫描最新存活节点 $(date +'%Y-%m-%d %H:%M')"
+            git push origin main
+          fi

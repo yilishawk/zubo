@@ -5,6 +5,27 @@
 **新增频道或新增地方频道或其他**  
 1. 组播源确保rtp/省份运营商.txt有需要的频道，没有则新增。
 2. 脚本里频道分类CHANNEL_CATEGORIES里添加新增频道名，如果有需要在频道名称映射CHANNEL_MAPPING里做映射更改。
+3. WV公众号：卡卡西的电视房
+
+---
+
+## 组播Docker版（解决断流）
+1.拉取镜像 `docker pull kakaxi088/zubo` 默认拉取最新版
+
+2.启动容器 `docker run -d --name zubo -p 5020:5020 kakaxi088/zubo:latest` 5000端口被占用可设置其他端口（port）
+
+3.容器第一次启动运行抓取需要30-60分钟，输入 `docker logs -f zubo` 查看抓取状态
+
+4.通过可视面板`http://载具ip:port`增减频道，添加映射
+
+5.等待抓取完成后 `http://载具ip:port/zubo.txt` 订阅。
+
+---
+
+## 📔 更新日志
+**增加组播源docker版**
+
+v3.0.1解决组播断流
 
 ---
 

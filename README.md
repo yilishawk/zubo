@@ -14,7 +14,7 @@
 
 2.启动容器 `docker run -d --name zubo -p 5020:5020 kakaxi088/zubo:latest` 5020端口被占用可设置其他端口（port）
 
-3.容器第一次启动运行抓取需要30-60分钟，输入 `docker logs -f zubo` 查看抓取状态
+3.容器第一次启动运行抓取需要5分钟左右，输入 `docker logs -f zubo` 查看抓取状态
 
 4.通过可视面板`http://载具ip:port`增减频道，添加映射
 
